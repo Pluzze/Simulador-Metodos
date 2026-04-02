@@ -1,0 +1,605 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Calculadora de Investimentos GFI — Amortização FIFO" />
+  <title>GFI — Calculadora de Investimentos</title>
+  <link rel="manifest" href="manifest.json" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script>tailwind.config = { darkMode: 'class' };</script>
+  <style>
+    :root { color-scheme: dark; }
+    body { background: #020617; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    .glass { background: rgba(15,23,42,.85); backdrop-filter: blur(14px); border: 1px solid rgba(51,65,85,.5); }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+    .fade-up { animation: fadeUp .45s ease both; }
+    .strat-btn { transition: all .2s; }
+    .strat-btn.on  { background: linear-gradient(135deg,#3b82f6,#8b5cf6); border-color: transparent; }
+    .strat-btn.off { background: #1e293b; border-color: #334155; }
+    .strat-btn.off:hover { background: #273549; }
+    .phase-btn { transition: all .2s; }
+    .phase-btn.on  { background: linear-gradient(135deg,#f59e0b,#ef4444); border-color: transparent; }
+    .phase-btn.off { background: #1e293b; border-color: #334155; }
+    .phase-btn.off:hover { background: #273549; }
+    input[type=range] { accent-color: #3b82f6; }
+    input[type=number],input[type=text] { transition: border-color .15s,box-shadow .15s; }
+    input:focus { outline: none; border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59,130,246,.2); }
+    .bar-fill { transition: width .7s cubic-bezier(.4,0,.2,1); }
+    .pkg-row:hover td { background: rgba(30,41,59,.5); }
+    .section-body { overflow: hidden; }
+    .section-body.collapsed { display: none; }
+    .group-header td { background: rgba(30,41,59,.9); cursor: pointer; user-select: none; }
+    .group-header:hover td { background: rgba(51,65,85,.7); }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen dark">
+
+<header class="sticky top-0 z-50 border-b border-slate-800 bg-slate-900/60 backdrop-blur">
+  <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center font-black text-white text-lg select-none shadow-lg shadow-blue-500/30">G</div>
+      <div><p class="font-bold text-white leading-none">GFI</p><p class="text-xs text-slate-400">Calculadora de Investimentos</p></div>
+    </div>
+    <span class="text-xs text-slate-600 hidden sm:block">Amortização FIFO · 12.5% a.m.</span>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-10 space-y-8">
+
+  <!-- FORM -->
+  <section class="glass rounded-2xl p-6 md:p-8">
+    <h2 class="text-base font-semibold text-slate-300 mb-6 flex items-center gap-2">
+      <span class="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">1</span>
+      Configurar Simulação
+    </h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+
+      <div class="space-y-1.5">
+        <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Aporte Inicial ($)</label>
+        <input id="initialDeposit" type="number" value="1000" min="100" step="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm" />
+        <p class="text-xs text-slate-500">Mín. $100 · pacotes $100, $600 ou $1.000</p>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Meses de Simulação</label>
+        <input id="simMonths" type="number" value="24" min="1" max="120" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm" />
+        <p class="text-xs text-slate-500">Período total da simulação</p>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Cotação do Dólar (R$/USD)</label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">R$</span>
+          <input id="cotacaoDolar" type="number" value="5.80" min="0" step="0.01" class="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-white text-sm" />
+        </div>
+        <p class="text-xs text-slate-500">Conversão BRL exibida nas tabelas</p>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Aportes Mensais Extras</label>
+        <div class="flex gap-2">
+          <div class="relative flex-1">
+            <input id="extraMonths" type="number" value="6" min="0" placeholder="Meses" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-3 text-white text-sm pr-8" oninput="syncExtraLabels()" />
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">×</span>
+          </div>
+          <div class="relative flex-1">
+            <input id="extraAmount" type="number" value="600" min="0" step="100" placeholder="$/mês" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-3 text-white text-sm pl-6" oninput="syncExtraLabels()" />
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
+          </div>
+        </div>
+        <p id="extraLabel" class="text-xs text-slate-500">6 meses × $600 = <strong class="text-slate-300">$3.600</strong></p>
+      </div>
+
+    </div>
+
+    <!-- Estratégia -->
+    <div class="mt-7 space-y-4">
+      <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Estratégia de Rendimento</label>
+      <div class="flex gap-3 flex-wrap">
+        <button id="btnReinvest" onclick="setStrategy('reinvest')" class="strat-btn on flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">♻ 100% Reinvestimento</button>
+        <button id="btnFaseado"  onclick="setStrategy('faseado')"  class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">📅 Faseado</button>
+        <button id="btnHybrid"   onclick="setStrategy('hybrid')"   class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">⚖ Híbrido</button>
+        <button id="btnFixedW"   onclick="setStrategy('fixedW')"   class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">💵 Saque Fixo</button>
+      </div>
+
+      <!-- Híbrido (todos os meses) -->
+      <div id="hybridOpts" class="hidden bg-slate-800/50 rounded-xl p-5">
+        <div class="flex items-center gap-5">
+          <div class="flex-1 space-y-2">
+            <div class="flex justify-between text-xs text-slate-400"><span>Saque</span><span id="lblWithdrawPct" class="text-amber-400 font-bold">30%</span></div>
+            <input id="withdrawalPct" type="range" min="0" max="100" value="30" step="5" class="w-full" oninput="syncHybrid()" />
+          </div>
+          <div class="w-px h-10 bg-slate-700 shrink-0"></div>
+          <div class="flex-1 space-y-2">
+            <div class="flex justify-between text-xs text-slate-400"><span>Reinvestimento</span><span id="lblReinvestPct" class="text-blue-400 font-bold">70%</span></div>
+            <div class="h-2 bg-slate-700 rounded-full overflow-hidden"><div id="reinvestBar" class="h-full bg-gradient-to-r from-blue-500 to-violet-500 rounded-full bar-fill" style="width:70%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Saque Fixo -->
+      <div id="fixedWOpts" class="hidden bg-slate-800/50 rounded-xl p-5">
+        <div class="space-y-1.5">
+          <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Valor Fixo de Saque por Mês ($)</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
+            <input id="fixedWithdrawAmt" type="number" value="500" min="0" step="50" class="w-full bg-slate-700 border border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm" />
+          </div>
+          <p class="text-xs text-slate-500">O restante do rendimento é reinvestido automaticamente · Saque líquido = valor × 0,90 <span class="text-orange-400">(taxa 10%)</span></p>
+        </div>
+      </div>
+
+      <!-- Faseado -->
+      <div id="faseadoOpts" class="hidden bg-slate-800/50 rounded-xl p-5 space-y-5">
+        <div class="space-y-2">
+          <p class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center font-black text-xs">1</span>
+            Fase de Reinvestimento Total
+          </p>
+          <div class="flex items-center gap-3">
+            <input id="reinvestPhaseMonths" type="number" value="12" min="1" max="120" class="w-28 bg-slate-700 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-sm" />
+            <span class="text-xs text-slate-400">meses de 100% reinvestimento</span>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <p class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-full bg-amber-500/20 flex items-center justify-center font-black text-xs">2</span>
+            Estratégia Pós-Fase
+          </p>
+          <div class="flex gap-3 flex-wrap">
+            <button id="btnFaseadoWithdraw" onclick="setFaseadoPost('withdraw100')"   class="phase-btn on flex-1 min-w-[120px] rounded-xl border py-2.5 text-sm font-semibold">💰 Sacar 100%</button>
+            <button id="btnFaseadoHybrid"   onclick="setFaseadoPost('hybrid')"        class="phase-btn off flex-1 min-w-[120px] rounded-xl border py-2.5 text-sm font-semibold">⚖ Reinvestir % e Sacar %</button>
+            <button id="btnFaseadoFixed"    onclick="setFaseadoPost('fixedWithdraw')" class="phase-btn off flex-1 min-w-[120px] rounded-xl border py-2.5 text-sm font-semibold">💵 Saque Valor Fixo</button>
+          </div>
+          <div id="faseadoHybridOpts" class="hidden bg-slate-700/40 rounded-xl p-4">
+            <div class="flex items-center gap-5">
+              <div class="flex-1 space-y-2">
+                <div class="flex justify-between text-xs text-slate-400"><span>Saque</span><span id="lblFaseadoWithdrawPct" class="text-amber-400 font-bold">50%</span></div>
+                <input id="faseadoWithdrawPct" type="range" min="0" max="100" value="50" step="5" class="w-full" oninput="syncFaseadoHybrid()" />
+              </div>
+              <div class="w-px h-10 bg-slate-600 shrink-0"></div>
+              <div class="flex-1 space-y-2">
+                <div class="flex justify-between text-xs text-slate-400"><span>Reinvestimento</span><span id="lblFaseadoReinvestPct" class="text-blue-400 font-bold">50%</span></div>
+                <div class="h-2 bg-slate-700 rounded-full overflow-hidden"><div id="faseadoReinvestBar" class="h-full bg-gradient-to-r from-blue-500 to-violet-500 rounded-full bar-fill" style="width:50%"></div></div>
+              </div>
+            </div>
+          </div>
+          <div id="faseadoFixedOpts" class="hidden bg-slate-700/40 rounded-xl p-4">
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Valor Fixo de Saque por Mês ($)</label>
+              <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
+                <input id="faseadoFixedAmt" type="number" value="500" min="0" step="50" class="w-full bg-slate-700 border border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm" />
+              </div>
+              <p class="text-xs text-slate-500">O restante é reinvestido · Saque líquido = valor × 0,90 <span class="text-orange-400">(taxa 10%)</span></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button onclick="runSimulation()" class="mt-7 w-full py-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 rounded-xl font-bold text-white text-base transition-all active:scale-95 shadow-xl shadow-blue-500/20">▶&nbsp; Simular</button>
+  </section>
+
+  <!-- RESULTS -->
+  <div id="results" class="hidden space-y-8">
+
+    <!-- Cards -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 fade-up">
+      <div class="glass rounded-2xl p-6">
+        <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Patrimônio Total Ativo</p>
+        <p id="cardAssets" class="text-3xl font-black text-white mt-1">—</p>
+        <p id="cardAssetsBRL" class="text-sm font-semibold text-yellow-300 mt-1 hidden">—</p>
+        <p class="text-xs text-slate-500 mt-2">Capital nos pacotes ativos</p>
+      </div>
+      <div class="glass rounded-2xl p-6">
+        <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Ganho Mensal Atual</p>
+        <p id="cardMonthly" class="text-3xl font-black text-emerald-400 mt-1">—</p>
+        <p id="cardMonthlyBRL" class="text-sm font-semibold text-yellow-300 mt-1 hidden">—</p>
+        <p class="text-xs text-slate-500 mt-2">12,5% dos pacotes ativos</p>
+      </div>
+      <div class="glass rounded-2xl p-6">
+        <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Sacado</p>
+        <p id="cardWithdrawn" class="text-3xl font-black text-amber-400 mt-1">—</p>
+        <p id="cardWithdrawnBRL" class="text-sm font-semibold text-yellow-300 mt-1 hidden">—</p>
+        <p class="text-xs text-slate-500 mt-2">Acumulado líquido <span class="text-orange-400">(taxa 10% descontada)</span></p>
+      </div>
+    </section>
+
+    <!-- Gráfico -->
+    <section class="glass rounded-2xl p-6 fade-up">
+      <h2 class="text-base font-semibold text-slate-300 mb-5">Evolução Patrimonial</h2>
+      <div class="relative" style="height:320px"><canvas id="evolutionChart"></canvas></div>
+    </section>
+
+    <!-- Histórico Mensal -->
+    <section class="glass rounded-2xl p-6 fade-up">
+      <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <h2 class="text-base font-semibold text-slate-300">Histórico Mensal</h2>
+        <div class="flex items-center gap-2">
+          <button onclick="exportExcel('monthly')" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-600/40 text-emerald-400 rounded-lg text-xs font-semibold transition-all">📥 Excel</button>
+          <button onclick="toggleSection('monthSection')" class="w-8 h-8 flex items-center justify-center bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-slate-400 transition-all" title="Recolher/Expandir"><span id="monthSectionIcon">▶</span></button>
+        </div>
+      </div>
+      <div id="monthSection" class="section-body collapsed overflow-x-auto -mx-2 px-2">
+        <table class="w-full text-sm min-w-[820px]">
+          <thead>
+            <tr class="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-slate-800">
+              <th class="pb-3 pr-3 font-medium">Mês</th>
+              <th class="pb-3 pr-3 font-medium">Rendimento ($)</th>
+              <th id="thMonthIncBRL" class="pb-3 pr-3 font-medium hidden">Rend. (R$)</th>
+              <th class="pb-3 pr-3 font-medium">Reinvestido ($)</th>
+              <th class="pb-3 pr-3 font-medium">Sacado Líq. ($) <span class="text-orange-400 normal-case">-10%</span></th>
+              <th id="thMonthWithBRL" class="pb-3 pr-3 font-medium hidden">Sacado Líq. (R$) <span class="text-orange-400 normal-case">-10%</span></th>
+              <th class="pb-3 pr-3 font-medium">Pcts. Ativos</th>
+              <th class="pb-3 pr-3 font-medium">Capital Ativo ($)</th>
+              <th class="pb-3 font-medium text-violet-400">Caixa Próx. Mês ($)</th>
+            </tr>
+          </thead>
+          <tbody id="monthTableBody" class="divide-y divide-slate-800/40 text-slate-300"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="border-t border-slate-800/50 py-6 text-center text-xs text-slate-700 mt-4">
+  GFI Calculadora · PWA · Amortização FIFO · 12,5% a.m.
+</footer>
+
+<script>
+let strategy    = 'reinvest';
+let faseadoPost = 'withdraw100';
+let chartInst   = null;
+let lastMonthlyData = [];
+let lastCotacao     = 0;
+
+function fmt(v) {
+  return '$' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtBRL(v, cotacao) {
+  return 'R$\u00a0' + (v * cotacao).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function syncExtraLabels() {
+  const m = parseInt(document.getElementById('extraMonths').value) || 0;
+  const a = parseFloat(document.getElementById('extraAmount').value) || 0;
+  document.getElementById('extraLabel').innerHTML =
+    m + ' meses × $' + a.toLocaleString() + ' = <strong class="text-slate-300">' + fmt(m * a) + '</strong>';
+}
+function syncHybrid() {
+  const w = parseInt(document.getElementById('withdrawalPct').value);
+  document.getElementById('lblWithdrawPct').textContent = w + '%';
+  document.getElementById('lblReinvestPct').textContent = (100 - w) + '%';
+  document.getElementById('reinvestBar').style.width    = (100 - w) + '%';
+}
+function syncFaseadoHybrid() {
+  const w = parseInt(document.getElementById('faseadoWithdrawPct').value);
+  document.getElementById('lblFaseadoWithdrawPct').textContent = w + '%';
+  document.getElementById('lblFaseadoReinvestPct').textContent = (100 - w) + '%';
+  document.getElementById('faseadoReinvestBar').style.width    = (100 - w) + '%';
+}
+
+function setStrategy(s) {
+  strategy = s;
+  const btnMap = {reinvest:'btnReinvest',faseado:'btnFaseado',hybrid:'btnHybrid',fixedW:'btnFixedW'};
+  ['reinvest','faseado','hybrid','fixedW'].forEach(k => {
+    const btn = document.getElementById(btnMap[k]);
+    btn.classList.remove('on','off');
+    btn.classList.add(k === s ? 'on' : 'off');
+  });
+  document.getElementById('hybridOpts').classList.toggle('hidden', s !== 'hybrid');
+  document.getElementById('faseadoOpts').classList.toggle('hidden', s !== 'faseado');
+  document.getElementById('fixedWOpts').classList.toggle('hidden', s !== 'fixedW');
+}
+function setFaseadoPost(p) {
+  faseadoPost = p;
+  const base = ' flex-1 min-w-[120px] rounded-xl border py-2.5 text-sm font-semibold';
+  document.getElementById('btnFaseadoWithdraw').className = 'phase-btn ' + (p==='withdraw100'?'on':'off')   + base;
+  document.getElementById('btnFaseadoHybrid').className   = 'phase-btn ' + (p==='hybrid'?'on':'off')        + base;
+  document.getElementById('btnFaseadoFixed').className    = 'phase-btn ' + (p==='fixedWithdraw'?'on':'off') + base;
+  document.getElementById('faseadoHybridOpts').classList.toggle('hidden', p !== 'hybrid');
+  document.getElementById('faseadoFixedOpts').classList.toggle('hidden', p !== 'fixedWithdraw');
+}
+function toggleSection(id) {
+  const body = document.getElementById(id);
+  const icon = document.getElementById(id + 'Icon');
+  const collapsed = body.classList.toggle('collapsed');
+  icon.textContent = collapsed ? '▶' : '▼';
+}
+
+// Engine
+let packages    = [];
+let pkgCounter  = 0;
+let pendingCash = 0;
+
+function resetEngine() { packages = []; pkgCounter = 0; pendingCash = 0; }
+
+function mkPkg(value, month) {
+  return { id: ++pkgCounter, value, ceiling: value * 2.5, remaining: value * 2.5, amortized: 0, status: 'ativo', month };
+}
+function activePackages() { return packages.filter(p => p.status === 'ativo'); }
+function monthlyIncome()  { return activePackages().reduce((s,p) => s + p.value, 0) * 0.125; }
+
+function amortizeFIFO(profit) {
+  let left = profit;
+  for (const p of activePackages()) {
+    if (left < 0.001) break;
+    if (left >= p.remaining) {
+      left -= p.remaining;
+      p.amortized = p.ceiling;
+      p.remaining = 0;
+      p.status    = 'finalizado';
+    } else {
+      p.remaining -= left;
+      p.amortized += left;
+      left = 0;
+    }
+  }
+}
+function buyWith(amount, month) {
+  const tiers = [1000, 600, 100];
+  let pool = amount + pendingCash;
+  pendingCash = 0;
+  let actualBought = 0;
+  while (pool >= 100) {
+    let bought = false;
+    for (const v of tiers) {
+      if (pool >= v) { packages.push(mkPkg(v, month)); pool -= v; actualBought += v; bought = true; break; }
+    }
+    if (!bought) break;
+  }
+  pendingCash = pool;
+  return actualBought;
+}
+
+async function runSimulation() {
+  // Busca cotação automática via AwesomeAPI
+  try {
+    const resp = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
+    if (resp.ok) {
+      const data = await resp.json();
+      const rate = parseFloat(data.USDBRL.bid);
+      if (rate > 0) document.getElementById('cotacaoDolar').value = rate.toFixed(2);
+    }
+  } catch (_) { /* mantém valor manual se API falhar */ }
+
+  const initial             = parseFloat(document.getElementById('initialDeposit').value)   || 0;
+  const simMonths           = parseInt(document.getElementById('simMonths').value)           || 12;
+  const extraMonths         = parseInt(document.getElementById('extraMonths').value)         || 0;
+  const extraAmount         = parseFloat(document.getElementById('extraAmount').value)       || 0;
+  const withdrawPct         = parseInt(document.getElementById('withdrawalPct').value)       || 0;
+  const reinvestPhaseMonths = parseInt(document.getElementById('reinvestPhaseMonths').value) || 12;
+  const faseadoWithdrawPct  = parseInt(document.getElementById('faseadoWithdrawPct').value)  || 50;
+  const fixedWithdrawAmt    = parseFloat(document.getElementById('fixedWithdrawAmt').value)  || 0;
+  const faseadoFixedAmt     = parseFloat(document.getElementById('faseadoFixedAmt').value)   || 0;
+  const cotacao             = parseFloat(document.getElementById('cotacaoDolar').value)      || 0;
+
+  if (initial < 100) { alert('Aporte inicial mínimo: $100'); return; }
+  resetEngine();
+  buyWith(initial, 0);
+
+  const monthly = [];
+  let totalWithdrawn = 0;
+
+  for (let m = 1; m <= simMonths; m++) {
+    if (m <= extraMonths && extraAmount > 0) buyWith(extraAmount, m);
+    const income = monthlyIncome();
+    amortizeFIFO(income);
+
+    let withdrawn = 0, reinvested = 0;
+
+    const TAX = 0.9; // 10% de taxa sobre saques
+    if (strategy === 'reinvest') {
+      reinvested = buyWith(income, m);
+    } else if (strategy === 'hybrid') {
+      const grossW = income * (withdrawPct / 100);
+      withdrawn = grossW * TAX;
+      const toReinvestH = income - grossW;
+      if (toReinvestH > 0) reinvested = buyWith(toReinvestH, m);
+    } else if (strategy === 'fixedW') {
+      const grossW = Math.min(income, fixedWithdrawAmt);
+      withdrawn = grossW * TAX;
+      const toReinvestFW = income - grossW;
+      if (toReinvestFW > 0) reinvested = buyWith(toReinvestFW, m);
+    } else if (strategy === 'faseado') {
+      if (m <= reinvestPhaseMonths) {
+        reinvested = buyWith(income, m);
+      } else if (faseadoPost === 'withdraw100') {
+        withdrawn = income * TAX;
+      } else if (faseadoPost === 'hybrid') {
+        const grossW = income * (faseadoWithdrawPct / 100);
+        withdrawn = grossW * TAX;
+        const toReinvestF = income - grossW;
+        if (toReinvestF > 0) reinvested = buyWith(toReinvestF, m);
+      } else if (faseadoPost === 'fixedWithdraw') {
+        const grossW = Math.min(income, faseadoFixedAmt);
+        withdrawn = grossW * TAX;
+        const toReinvestFF = income - grossW;
+        if (toReinvestFF > 0) reinvested = buyWith(toReinvestFF, m);
+      }
+    }
+
+    totalWithdrawn += withdrawn;
+    const actives    = activePackages();
+    const activeValue = actives.reduce((s, p) => s + p.value, 0);
+    monthly.push({ m, income, reinvested, withdrawn, totalWithdrawn, activeCount: actives.length, activeValue, pendingCash });
+  }
+
+  lastMonthlyData = monthly;
+  lastCotacao     = cotacao;
+  renderResults(monthly, cotacao);
+}
+
+function renderResults(monthly, cotacao) {
+  const last = monthly[monthly.length - 1];
+  document.getElementById('cardAssets').textContent    = fmt(last.activeValue);
+  document.getElementById('cardMonthly').textContent   = fmt(last.income);
+  document.getElementById('cardWithdrawn').textContent = fmt(last.totalWithdrawn);
+  const cardAssetsBRL    = document.getElementById('cardAssetsBRL');
+  const cardMonthlyBRL   = document.getElementById('cardMonthlyBRL');
+  const cardWithdrawnBRL = document.getElementById('cardWithdrawnBRL');
+  if (cotacao > 0) {
+    cardAssetsBRL.textContent    = fmtBRL(last.activeValue, cotacao);
+    cardMonthlyBRL.textContent   = fmtBRL(last.income, cotacao);
+    cardWithdrawnBRL.textContent = fmtBRL(last.totalWithdrawn, cotacao);
+    cardAssetsBRL.classList.remove('hidden');
+    cardMonthlyBRL.classList.remove('hidden');
+    cardWithdrawnBRL.classList.remove('hidden');
+  } else {
+    cardAssetsBRL.classList.add('hidden');
+    cardMonthlyBRL.classList.add('hidden');
+    cardWithdrawnBRL.classList.add('hidden');
+  }
+  renderChart(monthly);
+  renderMonthTable(monthly, cotacao);
+  const el = document.getElementById('results');
+  el.classList.remove('hidden');
+  setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+}
+
+function renderChart(monthly) {
+  const ctx = document.getElementById('evolutionChart').getContext('2d');
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  chartInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: monthly.map(r => 'Mês ' + r.m),
+      datasets: [
+        { label: 'Capital Ativo',     data: monthly.map(r => r.activeValue),    borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.12)', fill: true,  tension: 0.4, pointRadius: 2, pointHoverRadius: 5 },
+        { label: 'Rendimento Mensal', data: monthly.map(r => r.income),         borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.05)', fill: false, tension: 0.4, pointRadius: 2, pointHoverRadius: 5, borderDash: [5,3] },
+        { label: 'Total Sacado',      data: monthly.map(r => r.totalWithdrawn), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.05)', fill: true,  tension: 0.4, pointRadius: 2, pointHoverRadius: 5 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 12 }, boxWidth: 12 } },
+        tooltip: { backgroundColor: '#1e293b', borderColor: '#334155', borderWidth: 1, titleColor: '#f1f5f9', bodyColor: '#94a3b8',
+          callbacks: { label: c => ' ' + c.dataset.label + ': ' + fmt(c.raw) } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(51,65,85,.25)' }, ticks: { color: '#475569', font: { size: 11 }, maxTicksLimit: 13 } },
+        y: { grid: { color: 'rgba(51,65,85,.25)' }, ticks: { color: '#475569', font: { size: 11 }, callback: v => v >= 1000 ? '$' + (v/1000).toFixed(0) + 'k' : '$' + v.toFixed(0) } }
+      }
+    }
+  });
+}
+
+function renderMonthTable(monthly, cotacao) {
+  const showBRL = cotacao > 0;
+  document.getElementById('thMonthIncBRL').classList.toggle('hidden', !showBRL);
+  document.getElementById('thMonthWithBRL').classList.toggle('hidden', !showBRL);
+  const tbody = document.getElementById('monthTableBody');
+  tbody.innerHTML = '';
+  const colCount = showBRL ? 9 : 7;
+  const GROUP = 10;
+
+  for (let g = 0; g < Math.ceil(monthly.length / GROUP); g++) {
+    const start = g * GROUP;
+    const end   = Math.min(start + GROUP, monthly.length);
+    const groupId = 'mth-grp-' + g;
+
+    // Linha cabeçalho do grupo
+    const thdr = document.createElement('tr');
+    thdr.className = 'group-header';
+    thdr.innerHTML =
+      '<td colspan="' + colCount + '" class="py-2 px-3">' +
+        '<span class="flex items-center gap-2 text-xs font-bold text-slate-300">' +
+          '<span id="' + groupId + '-icon" class="text-slate-500">▶</span>' +
+          'Meses ' + monthly[start].m + ' – ' + monthly[end - 1].m +
+        '</span>' +
+      '</td>';
+    thdr.addEventListener('click', () => {
+      const rows = tbody.querySelectorAll('.' + groupId);
+      const icon = document.getElementById(groupId + '-icon');
+      const hidden = rows[0].classList.toggle('hidden');
+      rows.forEach(r => r.classList.toggle('hidden', hidden));
+      icon.textContent = hidden ? '▶' : '▼';
+    });
+    tbody.appendChild(thdr);
+
+    // Linhas de dados do grupo (começam ocultas)
+    for (let i = start; i < end; i++) {
+      const r  = monthly[i];
+      const tr = document.createElement('tr');
+      tr.className = groupId + ' hidden';
+      tr.innerHTML =
+        '<td class="py-2 pr-3 font-mono text-xs text-slate-500">' + r.m + '</td>' +
+        '<td class="py-2 pr-3 font-semibold text-emerald-400">' + fmt(r.income) + '</td>' +
+        (showBRL ? '<td class="py-2 pr-3 text-yellow-300 text-xs">' + fmtBRL(r.income, cotacao) + '</td>' : '') +
+        '<td class="py-2 pr-3 text-blue-400">' + fmt(r.reinvested) + '</td>' +
+        '<td class="py-2 pr-3 text-amber-400">' + fmt(r.withdrawn) + '</td>' +
+        (showBRL ? '<td class="py-2 pr-3 text-yellow-300 text-xs">' + fmtBRL(r.withdrawn, cotacao) + '</td>' : '') +
+        '<td class="py-2 pr-3 text-slate-300">' + r.activeCount + '</td>' +
+        '<td class="py-2 pr-3 font-semibold text-white">' + fmt(r.activeValue) + '</td>' +
+        '<td class="py-2 font-mono text-xs text-violet-400">' + fmt(r.pendingCash) + '</td>';
+      tbody.appendChild(tr);
+    }
+  }
+}
+
+function exportExcel(type) {
+  if (typeof XLSX === 'undefined') { alert('SheetJS não carregou. Aguarde e tente novamente.'); return; }
+  const wb      = XLSX.utils.book_new();
+  const cotacao = lastCotacao;
+
+  if (type === 'pacotes' || type === 'all') {
+    const data = packages.map(p => {
+      const row = {
+        'ID': '#' + p.id, 'Mês de Entrada': p.month,
+        'Valor ($)': p.value, 'Teto ($)': p.ceiling,
+        'Saldo Restante ($)': parseFloat(p.remaining.toFixed(2)),
+        'Amortizado ($)': parseFloat(p.amortized.toFixed(2)),
+        'Amortização (%)': parseFloat(((p.amortized / p.ceiling) * 100).toFixed(2)),
+        'Status': p.status,
+      };
+      if (cotacao > 0) {
+        row['Valor (R$)']          = parseFloat((p.value * cotacao).toFixed(2));
+        row['Saldo Restante (R$)'] = parseFloat((p.remaining * cotacao).toFixed(2));
+      }
+      return row;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Pacotes');
+  }
+
+  if (type === 'monthly' || type === 'all') {
+    const data = lastMonthlyData.map(r => {
+      const row = {
+        'Mês': r.m,
+        'Rendimento ($)': parseFloat(r.income.toFixed(2)),
+        'Reinvestido ($)': parseFloat(r.reinvested.toFixed(2)),
+        'Sacado Líquido ($) -10%': parseFloat(r.withdrawn.toFixed(2)),
+        'Total Sacado Líquido ($)': parseFloat(r.totalWithdrawn.toFixed(2)),
+        'Pacotes Ativos': r.activeCount,
+        'Capital Ativo ($)': parseFloat(r.activeValue.toFixed(2)),
+        'Caixa Próx. Mês ($)': parseFloat(r.pendingCash.toFixed(2)),
+      };
+      if (cotacao > 0) {
+        row['Rendimento (R$)']           = parseFloat((r.income * cotacao).toFixed(2));
+        row['Sacado Líquido (R$) -10%']  = parseFloat((r.withdrawn * cotacao).toFixed(2));
+      }
+      return row;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Histórico Mensal');
+  }
+
+  XLSX.writeFile(wb, 'GFI_Simulacao.xlsx');
+}
+
+syncExtraLabels();
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js').catch(() => {}); });
+}
+</script>
+</body>
+</html>
