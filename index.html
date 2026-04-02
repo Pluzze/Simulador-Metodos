@@ -81,7 +81,8 @@
 
       <div class="space-y-1.5">
         <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Aporte Inicial ($)</label>
-        <input id="initialDeposit" type="number" value="1000" min="100" step="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm" />
+        <input id="initialDeposit" type="number" value="1000" min="100" step="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm" oninput="syncInitialDepositBRL()" />
+        <p id="initialDepositBRL" class="text-xs text-yellow-300 font-medium"></p>
         <p class="text-xs text-slate-500">Mín. $100 · pacotes $100, $600 ou $1.000</p>
       </div>
 
@@ -104,15 +105,16 @@
         <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Aportes Mensais Extras</label>
         <div class="flex gap-2">
           <div class="relative flex-1">
-            <input id="extraMonths" type="number" value="6" min="0" placeholder="Meses" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-3 text-white text-sm pr-8" oninput="syncExtraLabels()" />
+            <input id="extraMonths" type="number" value="" min="0" placeholder="Meses" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-3 text-white text-sm pr-8" oninput="syncExtraLabels()" />
             <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">×</span>
           </div>
           <div class="relative flex-1">
-            <input id="extraAmount" type="number" value="600" min="0" step="100" placeholder="$/mês" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-3 text-white text-sm pl-6" oninput="syncExtraLabels()" />
+            <input id="extraAmount" type="number" value="" min="0" step="100" placeholder="$/mês" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-3 text-white text-sm pl-6" oninput="syncExtraLabels()" />
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
           </div>
         </div>
-        <p id="extraLabel" class="text-xs text-slate-500">6 meses × $600 = <strong class="text-slate-300">$3.600</strong></p>
+        <p id="extraLabel" class="text-xs text-slate-500"></p>
+        <p id="extraAmountBRL" class="text-xs text-yellow-300 font-medium"></p>
       </div>
 
     </div>
@@ -308,9 +310,23 @@ function syncFaseadoFixedBRL() {
   const el = document.getElementById('faseadoFixedBRL');
   if (el) el.textContent = cotacao > 0 && amt > 0 ? '≈ ' + fmtBRL(amt, cotacao) : '';
 }
+function syncInitialDepositBRL() {
+  const amt = parseFloat(document.getElementById('initialDeposit').value) || 0;
+  const cotacao = parseFloat(document.getElementById('cotacaoDolar').value) || 0;
+  const el = document.getElementById('initialDepositBRL');
+  if (el) el.textContent = cotacao > 0 && amt > 0 ? '≈ ' + fmtBRL(amt, cotacao) : '';
+}
+function syncExtraAmountBRL() {
+  const amt = parseFloat(document.getElementById('extraAmount').value) || 0;
+  const cotacao = parseFloat(document.getElementById('cotacaoDolar').value) || 0;
+  const el = document.getElementById('extraAmountBRL');
+  if (el) el.textContent = cotacao > 0 && amt > 0 ? '≈ ' + fmtBRL(amt, cotacao) + '/mês' : '';
+}
 function syncAllFixedBRL() {
   syncFixedWithdrawBRL();
   syncFaseadoFixedBRL();
+  syncInitialDepositBRL();
+  syncExtraAmountBRL();
 }
 
 function syncExtraLabels() {
@@ -318,6 +334,7 @@ function syncExtraLabels() {
   const a = parseFloat(document.getElementById('extraAmount').value) || 0;
   document.getElementById('extraLabel').innerHTML =
     m + ' meses × $' + a.toLocaleString() + ' = <strong class="text-slate-300">' + fmt(m * a) + '</strong>';
+  syncExtraAmountBRL();
 }
 function syncHybrid() {
   const w = parseInt(document.getElementById('withdrawalPct').value);
@@ -721,6 +738,7 @@ function showIOSGuide() {
 }
 
 syncExtraLabels();
+syncInitialDepositBRL();
 fetchCotacao();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
