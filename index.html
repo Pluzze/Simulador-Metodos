@@ -651,20 +651,14 @@ function exportExcel(type) {
 // PWA Install
 let deferredPrompt = null;
 
-// Android / Chrome / Edge: evento nativo
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredPrompt = e;
-  showInstallBtn();
-});
-window.addEventListener('appinstalled', () => {
-  deferredPrompt = null;
-  hideInstallBtn();
-  localStorage.setItem('pwaInstalled', '1');
-});
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+}
+function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
 
 function showInstallBtn() {
-  if (localStorage.getItem('pwaInstalled')) return;
+  if (isStandalone()) return; // já está instalado e rodando como app
   const btn = document.getElementById('btnInstallApp');
   if (btn) {
     btn.style.display = 'flex';
@@ -677,26 +671,31 @@ function hideInstallBtn() {
   if (btn) btn.style.display = 'none';
 }
 
-// iOS / Safari: detecta manualmente (não emite beforeinstallprompt)
-function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent); }
-function isInStandaloneMode() { return ('standalone' in window.navigator && window.navigator.standalone); }
-if (isIOS() && !isInStandaloneMode() && !localStorage.getItem('pwaInstalled')) {
+// Android / Chrome / Edge: evento nativo
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
   showInstallBtn();
+});
+window.addEventListener('appinstalled', () => {
+  deferredPrompt = null;
+  hideInstallBtn();
+});
+
+// iOS / Safari: detecta manualmente (não emite beforeinstallprompt)
+if (isIOS() && !isStandalone()) {
+  // Pequeno delay para garantir que o DOM esteja pronto
+  setTimeout(showInstallBtn, 500);
 }
 
 function installApp() {
   if (deferredPrompt) {
-    // Android / Chrome / Edge
     deferredPrompt.prompt();
     deferredPrompt.userChoice.then(choice => {
       deferredPrompt = null;
-      if (choice.outcome === 'accepted') {
-        hideInstallBtn();
-        localStorage.setItem('pwaInstalled', '1');
-      }
+      if (choice.outcome === 'accepted') hideInstallBtn();
     });
   } else if (isIOS()) {
-    // iOS: exibe tooltip orientando o usuário
     showIOSGuide();
   }
 }

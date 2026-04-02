@@ -2,7 +2,7 @@
   "name": "GFI — Calculadora de Investimentos",
   "short_name": "GFI Calc",
   "description": "Calculadora de Investimentos GFI baseada em amortização FIFO com rendimento de 12,5% a.m.",
-  "start_url": "./",
+  "start_url": "index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
