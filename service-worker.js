@@ -1,13 +1,16 @@
-const CACHE_NAME = 'gfi-calc-v1';
+const CACHE_NAME = 'gfi-calc-v2';
+
+// Base path relativo ao local do service worker (funciona em localhost E GitHub Pages)
+const BASE = self.registration.scope;
 
 // Arquivos locais que serão cacheados no install
 const APP_SHELL = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/apple-touch-icon.png',
+  BASE,
+  BASE + 'index.html',
+  BASE + 'manifest.json',
+  BASE + 'icon-192.png',
+  BASE + 'icon-512.png',
+  BASE + 'apple-touch-icon.png',
 ];
 
 // ── Install: precache do app shell ──────────────────────────
