@@ -47,7 +47,10 @@
       <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center font-black text-white text-lg select-none shadow-lg shadow-blue-500/30">G</div>
       <div><p class="font-bold text-white leading-none">GFI</p><p class="text-xs text-slate-400">Calculadora de Investimentos</p></div>
     </div>
-    <span class="text-xs text-slate-600 hidden sm:block">Amortização FIFO · 12.5% a.m.</span>
+    <div class="flex items-center gap-3">
+      <button id="btnInstallApp" onclick="installApp()" style="display:none" class="flex items-center gap-1.5 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/40 text-blue-400 rounded-lg text-xs font-semibold transition-all">⬇ Instalar App</button>
+      <span class="text-xs text-slate-600 hidden sm:block">Amortização FIFO · 12.5% a.m.</span>
+    </div>
   </div>
 </header>
 
@@ -77,7 +80,7 @@
         <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Cotação do Dólar (R$/USD)</label>
         <div class="relative">
           <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">R$</span>
-          <input id="cotacaoDolar" type="number" value="5.80" min="0" step="0.01" class="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-white text-sm" />
+          <input id="cotacaoDolar" type="number" value="5.80" min="0" step="0.01" class="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-white text-sm" oninput="syncAllFixedBRL()" />
         </div>
         <p class="text-xs text-slate-500">Conversão BRL exibida nas tabelas</p>
       </div>
@@ -127,12 +130,13 @@
       <!-- Saque Fixo -->
       <div id="fixedWOpts" class="hidden bg-slate-800/50 rounded-xl p-5">
         <div class="space-y-1.5">
-          <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Valor Fixo de Saque por Mês ($)</label>
+          <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Valor Fixo de Saque Líquido por Mês ($)</label>
           <div class="relative">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
-            <input id="fixedWithdrawAmt" type="number" value="500" min="0" step="50" class="w-full bg-slate-700 border border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm" />
+            <input id="fixedWithdrawAmt" type="number" value="500" min="0" step="50" class="w-full bg-slate-700 border border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm" oninput="syncFixedWithdrawBRL()" />
           </div>
-          <p class="text-xs text-slate-500">O restante do rendimento é reinvestido automaticamente · Saque líquido = valor × 0,90 <span class="text-orange-400">(taxa 10%)</span></p>
+          <p id="fixedWithdrawBRL" class="text-xs text-yellow-300 font-medium"></p>
+          <p class="text-xs text-slate-500">O valor informado é o saque líquido que você receberá. O restante do rendimento é reinvestido automaticamente.</p>
         </div>
       </div>
 
@@ -173,12 +177,13 @@
           </div>
           <div id="faseadoFixedOpts" class="hidden bg-slate-700/40 rounded-xl p-4">
             <div class="space-y-1.5">
-              <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Valor Fixo de Saque por Mês ($)</label>
+              <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Valor Fixo de Saque Líquido por Mês ($)</label>
               <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
-                <input id="faseadoFixedAmt" type="number" value="500" min="0" step="50" class="w-full bg-slate-700 border border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm" />
+                <input id="faseadoFixedAmt" type="number" value="500" min="0" step="50" class="w-full bg-slate-700 border border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm" oninput="syncFaseadoFixedBRL()" />
               </div>
-              <p class="text-xs text-slate-500">O restante é reinvestido · Saque líquido = valor × 0,90 <span class="text-orange-400">(taxa 10%)</span></p>
+              <p id="faseadoFixedBRL" class="text-xs text-yellow-300 font-medium"></p>
+              <p class="text-xs text-slate-500">O valor informado é o saque líquido que você receberá. O restante é reinvestido automaticamente.</p>
             </div>
           </div>
         </div>
@@ -225,10 +230,10 @@
         <h2 class="text-base font-semibold text-slate-300">Histórico Mensal</h2>
         <div class="flex items-center gap-2">
           <button onclick="exportExcel('monthly')" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-600/40 text-emerald-400 rounded-lg text-xs font-semibold transition-all">📥 Excel</button>
-          <button onclick="toggleSection('monthSection')" class="w-8 h-8 flex items-center justify-center bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-slate-400 transition-all" title="Recolher/Expandir"><span id="monthSectionIcon">▶</span></button>
+          <button onclick="toggleSection('monthSection')" class="w-8 h-8 flex items-center justify-center bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-slate-400 transition-all" title="Recolher/Expandir"><span id="monthSectionIcon">▼</span></button>
         </div>
       </div>
-      <div id="monthSection" class="section-body collapsed overflow-x-auto -mx-2 px-2">
+      <div id="monthSection" class="section-body overflow-x-auto -mx-2 px-2">
         <table class="w-full text-sm min-w-[820px]">
           <thead>
             <tr class="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-slate-800">
@@ -267,6 +272,30 @@ function fmt(v) {
 }
 function fmtBRL(v, cotacao) {
   return 'R$\u00a0' + (v * cotacao).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Converte número de mês da simulação em rótulo "Mmm/AA" a partir do mês atual
+function monthLabel(simMonth) {
+  const mNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + (simMonth - 1), 1);
+  return mNames[d.getMonth()] + '/' + String(d.getFullYear()).slice(-2);
+}
+function syncFixedWithdrawBRL() {
+  const amt = parseFloat(document.getElementById('fixedWithdrawAmt').value) || 0;
+  const cotacao = parseFloat(document.getElementById('cotacaoDolar').value) || 0;
+  const el = document.getElementById('fixedWithdrawBRL');
+  if (el) el.textContent = cotacao > 0 && amt > 0 ? '≈ ' + fmtBRL(amt, cotacao) : '';
+}
+function syncFaseadoFixedBRL() {
+  const amt = parseFloat(document.getElementById('faseadoFixedAmt').value) || 0;
+  const cotacao = parseFloat(document.getElementById('cotacaoDolar').value) || 0;
+  const el = document.getElementById('faseadoFixedBRL');
+  if (el) el.textContent = cotacao > 0 && amt > 0 ? '≈ ' + fmtBRL(amt, cotacao) : '';
+}
+function syncAllFixedBRL() {
+  syncFixedWithdrawBRL();
+  syncFaseadoFixedBRL();
 }
 
 function syncExtraLabels() {
@@ -361,16 +390,23 @@ function buyWith(amount, month) {
   return actualBought;
 }
 
-async function runSimulation() {
-  // Busca cotação automática via AwesomeAPI
+async function fetchCotacao() {
   try {
     const resp = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
     if (resp.ok) {
       const data = await resp.json();
       const rate = parseFloat(data.USDBRL.bid);
-      if (rate > 0) document.getElementById('cotacaoDolar').value = rate.toFixed(2);
+      if (rate > 0) {
+        document.getElementById('cotacaoDolar').value = rate.toFixed(2);
+        syncAllFixedBRL();
+      }
     }
   } catch (_) { /* mantém valor manual se API falhar */ }
+}
+
+async function runSimulation() {
+  // Atualiza cotação antes de simular
+  await fetchCotacao();
 
   const initial             = parseFloat(document.getElementById('initialDeposit').value)   || 0;
   const simMonths           = parseInt(document.getElementById('simMonths').value)           || 12;
@@ -406,7 +442,7 @@ async function runSimulation() {
       const toReinvestH = income - grossW;
       if (toReinvestH > 0) reinvested = buyWith(toReinvestH, m);
     } else if (strategy === 'fixedW') {
-      const grossW = Math.min(income, fixedWithdrawAmt);
+      const grossW = Math.min(income, fixedWithdrawAmt / TAX);
       withdrawn = grossW * TAX;
       const toReinvestFW = income - grossW;
       if (toReinvestFW > 0) reinvested = buyWith(toReinvestFW, m);
@@ -421,7 +457,7 @@ async function runSimulation() {
         const toReinvestF = income - grossW;
         if (toReinvestF > 0) reinvested = buyWith(toReinvestF, m);
       } else if (faseadoPost === 'fixedWithdraw') {
-        const grossW = Math.min(income, faseadoFixedAmt);
+        const grossW = Math.min(income, faseadoFixedAmt / TAX);
         withdrawn = grossW * TAX;
         const toReinvestFF = income - grossW;
         if (toReinvestFF > 0) reinvested = buyWith(toReinvestFF, m);
@@ -515,8 +551,9 @@ function renderMonthTable(monthly, cotacao) {
     thdr.innerHTML =
       '<td colspan="' + colCount + '" class="py-2 px-3">' +
         '<span class="flex items-center gap-2 text-xs font-bold text-slate-300">' +
-          '<span id="' + groupId + '-icon" class="text-slate-500">▶</span>' +
+          '<span id="' + groupId + '-icon" class="text-slate-500">▼</span>' +
           'Meses ' + monthly[start].m + ' – ' + monthly[end - 1].m +
+          ' <span class="text-slate-500 font-normal">('+  monthLabel(monthly[start].m) + ' – ' + monthLabel(monthly[end - 1].m) + ')</span>' +
         '</span>' +
       '</td>';
     thdr.addEventListener('click', () => {
@@ -532,9 +569,9 @@ function renderMonthTable(monthly, cotacao) {
     for (let i = start; i < end; i++) {
       const r  = monthly[i];
       const tr = document.createElement('tr');
-      tr.className = groupId + ' hidden';
+      tr.className = groupId;
       tr.innerHTML =
-        '<td class="py-2 pr-3 font-mono text-xs text-slate-500">' + r.m + '</td>' +
+        '<td class="py-2 pr-3 font-mono text-xs text-slate-500">' + r.m + '<br><span class="text-slate-600">' + monthLabel(r.m) + '</span></td>' +
         '<td class="py-2 pr-3 font-semibold text-emerald-400">' + fmt(r.income) + '</td>' +
         (showBRL ? '<td class="py-2 pr-3 text-yellow-300 text-xs">' + fmtBRL(r.income, cotacao) + '</td>' : '') +
         '<td class="py-2 pr-3 text-blue-400">' + fmt(r.reinvested) + '</td>' +
@@ -596,7 +633,27 @@ function exportExcel(type) {
   XLSX.writeFile(wb, 'GFI_Simulacao.xlsx');
 }
 
+// PWA Install
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const btn = document.getElementById('btnInstallApp');
+  if (btn) btn.style.display = 'flex';
+});
+window.addEventListener('appinstalled', () => {
+  deferredPrompt = null;
+  const btn = document.getElementById('btnInstallApp');
+  if (btn) btn.style.display = 'none';
+});
+function installApp() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+}
+
 syncExtraLabels();
+fetchCotacao();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js').catch(() => {}); });
 }
