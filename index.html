@@ -724,7 +724,14 @@ function showIOSGuide() {
 syncExtraLabels();
 fetchCotacao();
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js').catch(() => {}); });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js')
+      .then(reg => {
+        // Força verificação de atualização do SW a cada carregamento
+        reg.update();
+      })
+      .catch(() => {});
+  });
 }
 </script>
 </body>
