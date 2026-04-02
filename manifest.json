@@ -3,12 +3,20 @@
   "short_name": "GFI Calc",
   "description": "Calculadora de Investimentos GFI baseada em amortização FIFO com rendimento de 12,5% a.m.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "background_color": "#020617",
   "theme_color": "#0f172a",
   "lang": "pt-BR",
+  "categories": ["finance", "utilities"],
   "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "icon-192.png",
       "sizes": "192x192",
@@ -23,3 +31,4 @@
     }
   ]
 }
+
