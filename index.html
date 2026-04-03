@@ -542,9 +542,9 @@ function renderChart(monthly) {
     data: {
       labels: monthly.map(r => 'Mês ' + r.m),
       datasets: [
-        { label: 'Capital Ativo',     data: monthly.map(r => r.activeValue),    borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.12)', fill: true,  tension: 0.4, pointRadius: 2, pointHoverRadius: 5 },
-        { label: 'Rendimento Mensal', data: monthly.map(r => r.income),         borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.05)', fill: false, tension: 0.4, pointRadius: 2, pointHoverRadius: 5, borderDash: [5,3] },
-        { label: 'Total Sacado',      data: monthly.map(r => r.totalWithdrawn), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.05)', fill: true,  tension: 0.4, pointRadius: 2, pointHoverRadius: 5 },
+        { label: 'Capital Ativo',     data: monthly.map(r => r.activeValue), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.12)', fill: true,  tension: 0.4, pointRadius: 2, pointHoverRadius: 5 },
+        { label: 'Rendimento Mensal', data: monthly.map(r => r.income),      borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.05)', fill: false, tension: 0.4, pointRadius: 2, pointHoverRadius: 5, borderDash: [5,3] },
+        { label: 'Sacado Mensal',     data: monthly.map(r => r.withdrawn),   borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.05)', fill: true,  tension: 0.4, pointRadius: 2, pointHoverRadius: 5 },
       ]
     },
     options: {
@@ -577,27 +577,58 @@ function renderMonthTable(monthly, cotacao) {
     const end   = Math.min(start + GROUP, monthly.length);
     const groupId = 'mth-grp-' + g;
 
-    // Linha cabeçalho do grupo
-    const thdr = document.createElement('tr');
-    thdr.className = 'group-header';
-    thdr.innerHTML =
+    // Pré-calcular resumo do grupo
+    const slice        = monthly.slice(start, end);
+    const sumIncome    = slice.reduce((s, r) => s + r.income, 0);
+    const sumReinvest  = slice.reduce((s, r) => s + r.reinvested, 0);
+    const sumWithdrawn = slice.reduce((s, r) => s + r.withdrawn, 0);
+    const lastR        = monthly[end - 1];
+
+    // HTML do cabeçalho expandido (span único)
+    const expandedInner =
       '<td colspan="' + colCount + '" class="py-2 px-3">' +
         '<span class="flex items-center gap-2 text-xs font-bold text-slate-300">' +
-          '<span id="' + groupId + '-icon" class="text-slate-500">▼</span>' +
+          '<span class="text-slate-500">▼</span>' +
           'Meses ' + monthly[start].m + ' – ' + monthly[end - 1].m +
-          ' <span class="text-slate-500 font-normal">('+  monthLabel(monthly[start].m) + ' – ' + monthLabel(monthly[end - 1].m) + ')</span>' +
+          ' <span class="text-slate-500 font-normal">(' + monthLabel(monthly[start].m) + ' – ' + monthLabel(monthly[end - 1].m) + ')</span>' +
         '</span>' +
       '</td>';
+
+    // HTML do cabeçalho recolhido (resumo inline, mesma linha)
+    const collapsedInner =
+      '<td class="py-2 px-3 whitespace-nowrap">' +
+        '<span class="flex items-center gap-2 text-xs font-bold text-slate-300">' +
+          '<span class="text-slate-500">▶</span>' +
+          'Meses ' + monthly[start].m + ' – ' + monthly[end - 1].m +
+          ' <span class="text-slate-500 font-normal">(' + monthLabel(monthly[start].m) + ' – ' + monthLabel(monthly[end - 1].m) + ')</span>' +
+        '</span>' +
+      '</td>' +
+      '<td class="py-2 pr-3 font-bold text-emerald-300 text-xs">' + fmt(sumIncome) + '</td>' +
+      (showBRL ? '<td class="py-2 pr-3 text-yellow-200 text-xs font-semibold">' + fmtBRL(sumIncome, cotacao) + '</td>' : '') +
+      '<td class="py-2 pr-3 font-bold text-blue-300 text-xs">' + fmt(sumReinvest) + '</td>' +
+      '<td class="py-2 pr-3 font-bold text-amber-300 text-xs">' + fmt(sumWithdrawn) + '</td>' +
+      (showBRL ? '<td class="py-2 pr-3 text-yellow-200 text-xs font-semibold">' + fmtBRL(sumWithdrawn, cotacao) + '</td>' : '') +
+      '<td class="py-2 pr-3 text-slate-400 text-xs">' + lastR.activeCount + '</td>' +
+      '<td class="py-2 pr-3 font-bold text-white text-xs">' + fmt(lastR.activeValue) + '</td>' +
+      '<td class="py-2 font-bold text-violet-300 text-xs">' + fmt(lastR.pendingCash) + '</td>';
+
+    const thdr = document.createElement('tr');
+    thdr.className = 'group-header';
+    thdr.innerHTML = expandedInner;
     thdr.addEventListener('click', () => {
       const rows = tbody.querySelectorAll('.' + groupId);
-      const icon = document.getElementById(groupId + '-icon');
-      const hidden = rows[0].classList.toggle('hidden');
-      rows.forEach(r => r.classList.toggle('hidden', hidden));
-      icon.textContent = hidden ? '▶' : '▼';
+      const isHidden = rows[0].classList.contains('hidden');
+      if (isHidden) {
+        rows.forEach(r => r.classList.remove('hidden'));
+        thdr.innerHTML = expandedInner;
+      } else {
+        rows.forEach(r => r.classList.add('hidden'));
+        thdr.innerHTML = collapsedInner;
+      }
     });
     tbody.appendChild(thdr);
 
-    // Linhas de dados do grupo (começam ocultas)
+    // Linhas de dados do grupo
     for (let i = start; i < end; i++) {
       const r  = monthly[i];
       const tr = document.createElement('tr');
@@ -642,21 +673,19 @@ function exportExcel(type) {
   }
 
   if (type === 'monthly' || type === 'all') {
+    const showBRL = cotacao > 0;
     const data = lastMonthlyData.map(r => {
-      const row = {
-        'Mês': r.m,
-        'Rendimento ($)': parseFloat(r.income.toFixed(2)),
-        'Reinvestido ($)': parseFloat(r.reinvested.toFixed(2)),
-        'Sacado Líquido ($) -10%': parseFloat(r.withdrawn.toFixed(2)),
-        'Total Sacado Líquido ($)': parseFloat(r.totalWithdrawn.toFixed(2)),
-        'Pacotes Ativos': r.activeCount,
-        'Capital Ativo ($)': parseFloat(r.activeValue.toFixed(2)),
-        'Caixa Próx. Mês ($)': parseFloat(r.pendingCash.toFixed(2)),
-      };
-      if (cotacao > 0) {
-        row['Rendimento (R$)']           = parseFloat((r.income * cotacao).toFixed(2));
-        row['Sacado Líquido (R$) -10%']  = parseFloat((r.withdrawn * cotacao).toFixed(2));
-      }
+      const row = {};
+      row['Mês']                      = r.m;
+      row['Período']                  = monthLabel(r.m);
+      row['Rendimento ($)']           = fmt(r.income);
+      if (showBRL) row['Rend. (R$)'] = fmtBRL(r.income, cotacao);
+      row['Reinvestido ($)']          = fmt(r.reinvested);
+      row['Sacado Líq. ($) -10%']    = fmt(r.withdrawn);
+      if (showBRL) row['Sacado Líq. (R$) -10%'] = fmtBRL(r.withdrawn, cotacao);
+      row['Pcts. Ativos']             = r.activeCount;
+      row['Capital Ativo ($)']        = fmt(r.activeValue);
+      row['Caixa Próx. Mês ($)']      = fmt(r.pendingCash);
       return row;
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Histórico Mensal');
