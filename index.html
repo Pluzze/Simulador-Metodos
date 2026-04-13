@@ -36,6 +36,10 @@
     .phase-btn.on  { background: linear-gradient(135deg,#f59e0b,#ef4444); border-color: transparent; }
     .phase-btn.off { background: #1e293b; border-color: #334155; }
     .phase-btn.off:hover { background: #273549; }
+    .withdraw-btn { transition: all .2s; }
+    .withdraw-btn.on  { background: linear-gradient(135deg,#f59e0b,#ef4444); border-color: transparent; box-shadow: 0 0 14px rgba(245,158,11,.35); }
+    .withdraw-btn.off { background: #1e293b; border-color: #334155; }
+    .withdraw-btn.off:hover { background: #273549; }
     input[type=range] { accent-color: #3b82f6; }
     input[type=number],input[type=text] { transition: border-color .15s,box-shadow .15s; }
     input:focus { outline: none; border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59,130,246,.2); }
@@ -119,14 +123,25 @@
 
     </div>
 
+    <!-- Mês para iniciar 100% saque (fora da seção de estratégia) -->
+    <div class="mt-6 flex items-end gap-3">
+      <div class="space-y-1.5 w-56">
+        <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Mês para iniciar 100% saque</label>
+        <input id="fullWithdrawFromMonth" type="number" value="" min="1" placeholder="Desativado" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm" />
+      </div>
+      <p class="text-xs text-slate-500 mb-2.5">A partir deste mês todo rendimento é sacado, independente da estratégia.</p>
+    </div>
+
     <!-- Estratégia -->
     <div class="mt-7 space-y-4">
       <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Estratégia de Rendimento</label>
+
       <div class="flex gap-3 flex-wrap">
         <button id="btnReinvest" onclick="setStrategy('reinvest')" class="strat-btn on flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">♻ 100% Reinvestimento</button>
         <button id="btnFaseado"  onclick="setStrategy('faseado')"  class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">📅 Faseado</button>
         <button id="btnHybrid"   onclick="setStrategy('hybrid')"   class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">⚖ Híbrido</button>
         <button id="btnFixedW"   onclick="setStrategy('fixedW')"   class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">💵 Saque Fixo</button>
+        <button id="btnFullWithdraw" onclick="toggleFullWithdraw()" title="Ativa modo 100% saque a partir do mês 1" class="withdraw-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold text-white">💰 100% Saque</button>
       </div>
 
       <!-- Híbrido (todos os meses) -->
@@ -154,6 +169,20 @@
           </div>
           <p id="fixedWithdrawBRL" class="text-xs text-yellow-300 font-medium"></p>
           <p class="text-xs text-slate-500">O valor informado é o saque líquido que você receberá. O restante do rendimento é reinvestido automaticamente.</p>
+          <div class="grid grid-cols-2 gap-3 mt-3">
+            <div class="space-y-1">
+              <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Reajuste (%)</label>
+              <div class="relative">
+                <input id="fixedWithdrawGrowthPct" type="number" value="" min="0" step="0.5" placeholder="Ex: 5" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm pr-7" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
+              </div>
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Intervalo (meses)</label>
+              <input id="fixedWithdrawGrowthInterval" type="number" value="" min="1" placeholder="Ex: 12" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm" />
+            </div>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">Reajuste composto: a cada X meses o saque aumenta % (cumulativo).</p>
         </div>
       </div>
 
@@ -201,20 +230,36 @@
               </div>
               <p id="faseadoFixedBRL" class="text-xs text-yellow-300 font-medium"></p>
               <p class="text-xs text-slate-500">O valor informado é o saque líquido que você receberá. O restante é reinvestido automaticamente.</p>
+              <div class="grid grid-cols-2 gap-3 mt-3">
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Reajuste (%)</label>
+                  <div class="relative">
+                    <input id="faseadoFixedGrowthPct" type="number" value="" min="0" step="0.5" placeholder="Ex: 5" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm pr-7" />
+                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
+                  </div>
+                </div>
+                <div class="space-y-1">
+                  <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Intervalo (meses)</label>
+                  <input id="faseadoFixedGrowthInterval" type="number" value="" min="1" placeholder="Ex: 12" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm" />
+                </div>
+              </div>
+              <p class="text-xs text-slate-500 mt-1">Reajuste composto: a cada X meses o saque aumenta % (cumulativo).</p>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <button onclick="runSimulation()" class="mt-7 w-full py-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 rounded-xl font-bold text-white text-base transition-all active:scale-95 shadow-xl shadow-blue-500/20">▶&nbsp; Simular</button>
+    <div class="mt-6">
+      <button onclick="runSimulation()" class="w-full py-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 rounded-xl font-bold text-white text-base transition-all active:scale-95 shadow-xl shadow-blue-500/20">▶&nbsp; Simular</button>
+    </div>
   </section>
 
   <!-- RESULTS -->
   <div id="results" class="hidden space-y-8">
 
     <!-- Cards -->
-    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 fade-up">
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 fade-up">
       <div class="glass rounded-2xl p-6">
         <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Patrimônio Total Ativo</p>
         <p id="cardAssets" class="text-3xl font-black text-white mt-1">—</p>
@@ -228,10 +273,16 @@
         <p class="text-xs text-slate-500 mt-2">12,5% dos pacotes ativos</p>
       </div>
       <div class="glass rounded-2xl p-6">
-        <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Sacado</p>
+        <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Sacado Líquido</p>
         <p id="cardWithdrawn" class="text-3xl font-black text-amber-400 mt-1">—</p>
         <p id="cardWithdrawnBRL" class="text-sm font-semibold text-yellow-300 mt-1 hidden">—</p>
         <p class="text-xs text-slate-500 mt-2">Acumulado líquido <span class="text-orange-400">(taxa 10% descontada)</span></p>
+      </div>
+      <div class="glass rounded-2xl p-6">
+        <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Sacado Bruto Total</p>
+        <p id="cardWithdrawnGross" class="text-3xl font-black text-orange-400 mt-1">—</p>
+        <p id="cardWithdrawnGrossBRL" class="text-sm font-semibold text-yellow-300 mt-1 hidden">—</p>
+        <p class="text-xs text-slate-500 mt-2">Soma bruta <span class="text-orange-400">(antes da taxa)</span></p>
       </div>
     </section>
 
@@ -251,7 +302,7 @@
         </div>
       </div>
       <div id="monthSection" class="section-body overflow-x-auto -mx-2 px-2">
-        <table class="w-full text-sm min-w-[820px]">
+        <table class="w-full text-sm min-w-[1050px]">
           <thead>
             <tr class="text-left text-xs text-slate-500 uppercase tracking-wider border-b border-slate-800">
               <th class="pb-3 pr-3 font-medium">Mês</th>
@@ -260,6 +311,8 @@
               <th class="pb-3 pr-3 font-medium">Reinvestido ($)</th>
               <th class="pb-3 pr-3 font-medium">Sacado Líq. ($) <span class="text-orange-400 normal-case">-10%</span></th>
               <th id="thMonthWithBRL" class="pb-3 pr-3 font-medium hidden">Sacado Líq. (R$) <span class="text-orange-400 normal-case">-10%</span></th>
+              <th class="pb-3 pr-3 font-medium text-orange-300">Sacado Bruto ($)</th>
+              <th id="thMonthGrossBRL" class="pb-3 pr-3 font-medium text-orange-200 hidden">Sacado Bruto (R$)</th>
               <th class="pb-3 pr-3 font-medium">Pcts. Ativos</th>
               <th class="pb-3 pr-3 font-medium">Capital Ativo ($)</th>
               <th class="pb-3 font-medium text-violet-400">Caixa Próx. Mês ($)</th>
@@ -283,6 +336,28 @@ let faseadoPost = 'withdraw100';
 let chartInst   = null;
 let lastMonthlyData = [];
 let lastCotacao     = 0;
+
+function toggleFullWithdraw() {
+  const btn   = document.getElementById('btnFullWithdraw');
+  const input = document.getElementById('fullWithdrawFromMonth');
+  const isOn  = btn.classList.contains('on');
+  btn.classList.remove('on', 'off');
+  if (isOn) {
+    btn.classList.add('off');
+    input.value = '';
+  } else {
+    // Desativa todos os botões de estratégia
+    ['btnReinvest','btnFaseado','btnHybrid','btnFixedW'].forEach(id => {
+      const b = document.getElementById(id);
+      b.classList.remove('on'); b.classList.add('off');
+    });
+    document.getElementById('hybridOpts').classList.add('hidden');
+    document.getElementById('faseadoOpts').classList.add('hidden');
+    document.getElementById('fixedWOpts').classList.add('hidden');
+    btn.classList.add('on');
+    input.value = 1;
+  }
+}
 
 function fmt(v) {
   return '$' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -357,6 +432,10 @@ function setStrategy(s) {
     btn.classList.remove('on','off');
     btn.classList.add(k === s ? 'on' : 'off');
   });
+  // Desativa o botão 100% Saque e limpa o campo
+  const bfw = document.getElementById('btnFullWithdraw');
+  bfw.classList.remove('on'); bfw.classList.add('off');
+  document.getElementById('fullWithdrawFromMonth').value = '';
   document.getElementById('hybridOpts').classList.toggle('hidden', s !== 'hybrid');
   document.getElementById('faseadoOpts').classList.toggle('hidden', s !== 'faseado');
   document.getElementById('fixedWOpts').classList.toggle('hidden', s !== 'fixedW');
@@ -447,9 +526,14 @@ async function runSimulation() {
   const withdrawPct         = parseInt(document.getElementById('withdrawalPct').value)       || 0;
   const reinvestPhaseMonths = parseInt(document.getElementById('reinvestPhaseMonths').value) || 12;
   const faseadoWithdrawPct  = parseInt(document.getElementById('faseadoWithdrawPct').value)  || 50;
-  const fixedWithdrawAmt    = parseFloat(document.getElementById('fixedWithdrawAmt').value)  || 0;
-  const faseadoFixedAmt     = parseFloat(document.getElementById('faseadoFixedAmt').value)   || 0;
-  const cotacao             = parseFloat(document.getElementById('cotacaoDolar').value)      || 0;
+  const fixedWithdrawAmt            = parseFloat(document.getElementById('fixedWithdrawAmt').value)           || 0;
+  const fixedWithdrawGrowthPct      = parseFloat(document.getElementById('fixedWithdrawGrowthPct').value)     || 0;
+  const fixedWithdrawGrowthInterval = parseInt(document.getElementById('fixedWithdrawGrowthInterval').value)  || 0;
+  const faseadoFixedAmt             = parseFloat(document.getElementById('faseadoFixedAmt').value)            || 0;
+  const faseadoFixedGrowthPct       = parseFloat(document.getElementById('faseadoFixedGrowthPct').value)      || 0;
+  const faseadoFixedGrowthInterval  = parseInt(document.getElementById('faseadoFixedGrowthInterval').value)   || 0;
+  const fullWithdrawFromMonth       = parseInt(document.getElementById('fullWithdrawFromMonth').value)        || 0;
+  const cotacao                     = parseFloat(document.getElementById('cotacaoDolar').value)               || 0;
 
   if (initial < 100) { alert('Aporte inicial mínimo: $100'); return; }
   resetEngine();
@@ -457,24 +541,37 @@ async function runSimulation() {
 
   const monthly = [];
   let totalWithdrawn = 0;
+  let totalWithdrawnGross = 0;
 
   for (let m = 1; m <= simMonths; m++) {
     if (m <= extraMonths && extraAmount > 0) buyWith(extraAmount, m);
     const income = monthlyIncome();
     amortizeFIFO(income);
 
-    let withdrawn = 0, reinvested = 0;
+    let withdrawn = 0, reinvested = 0, grossWithdrawn = 0;
 
     const TAX = 0.9; // 10% de taxa sobre saques
-    if (strategy === 'reinvest') {
+
+    // Override: a partir do mês configurado, 100% do rendimento é sacado
+    if (fullWithdrawFromMonth > 0 && m >= fullWithdrawFromMonth) {
+      grossWithdrawn = income;
+      withdrawn = income * TAX;
+    } else if (strategy === 'reinvest') {
       reinvested = buyWith(income, m);
     } else if (strategy === 'hybrid') {
       const grossW = income * (withdrawPct / 100);
+      grossWithdrawn = grossW;
       withdrawn = grossW * TAX;
       const toReinvestH = income - grossW;
       if (toReinvestH > 0) reinvested = buyWith(toReinvestH, m);
     } else if (strategy === 'fixedW') {
-      const grossW = Math.min(income, fixedWithdrawAmt / TAX);
+      let effectiveFixed = fixedWithdrawAmt;
+      if (fixedWithdrawGrowthInterval > 0 && fixedWithdrawGrowthPct > 0) {
+        const periods = Math.floor((m - 1) / fixedWithdrawGrowthInterval);
+        effectiveFixed = fixedWithdrawAmt * Math.pow(1 + fixedWithdrawGrowthPct / 100, periods);
+      }
+      const grossW = Math.min(income, effectiveFixed / TAX);
+      grossWithdrawn = grossW;
       withdrawn = grossW * TAX;
       const toReinvestFW = income - grossW;
       if (toReinvestFW > 0) reinvested = buyWith(toReinvestFW, m);
@@ -482,14 +579,23 @@ async function runSimulation() {
       if (m <= reinvestPhaseMonths) {
         reinvested = buyWith(income, m);
       } else if (faseadoPost === 'withdraw100') {
+        grossWithdrawn = income;
         withdrawn = income * TAX;
       } else if (faseadoPost === 'hybrid') {
         const grossW = income * (faseadoWithdrawPct / 100);
+        grossWithdrawn = grossW;
         withdrawn = grossW * TAX;
         const toReinvestF = income - grossW;
         if (toReinvestF > 0) reinvested = buyWith(toReinvestF, m);
       } else if (faseadoPost === 'fixedWithdraw') {
-        const grossW = Math.min(income, faseadoFixedAmt / TAX);
+        let effectiveFixed = faseadoFixedAmt;
+        if (faseadoFixedGrowthInterval > 0 && faseadoFixedGrowthPct > 0) {
+          const postM = m - reinvestPhaseMonths;
+          const periods = Math.floor((postM - 1) / faseadoFixedGrowthInterval);
+          effectiveFixed = faseadoFixedAmt * Math.pow(1 + faseadoFixedGrowthPct / 100, periods);
+        }
+        const grossW = Math.min(income, effectiveFixed / TAX);
+        grossWithdrawn = grossW;
         withdrawn = grossW * TAX;
         const toReinvestFF = income - grossW;
         if (toReinvestFF > 0) reinvested = buyWith(toReinvestFF, m);
@@ -497,9 +603,10 @@ async function runSimulation() {
     }
 
     totalWithdrawn += withdrawn;
+    totalWithdrawnGross += grossWithdrawn;
     const actives    = activePackages();
     const activeValue = actives.reduce((s, p) => s + p.value, 0);
-    monthly.push({ m, income, reinvested, withdrawn, totalWithdrawn, activeCount: actives.length, activeValue, pendingCash });
+    monthly.push({ m, income, reinvested, withdrawn, grossWithdrawn, totalWithdrawn, totalWithdrawnGross, activeCount: actives.length, activeValue, pendingCash });
   }
 
   lastMonthlyData = monthly;
@@ -509,23 +616,28 @@ async function runSimulation() {
 
 function renderResults(monthly, cotacao) {
   const last = monthly[monthly.length - 1];
-  document.getElementById('cardAssets').textContent    = fmt(last.activeValue);
-  document.getElementById('cardMonthly').textContent   = fmt(last.income);
-  document.getElementById('cardWithdrawn').textContent = fmt(last.totalWithdrawn);
-  const cardAssetsBRL    = document.getElementById('cardAssetsBRL');
-  const cardMonthlyBRL   = document.getElementById('cardMonthlyBRL');
-  const cardWithdrawnBRL = document.getElementById('cardWithdrawnBRL');
+  document.getElementById('cardAssets').textContent         = fmt(last.activeValue);
+  document.getElementById('cardMonthly').textContent        = fmt(last.income);
+  document.getElementById('cardWithdrawn').textContent      = fmt(last.totalWithdrawn);
+  document.getElementById('cardWithdrawnGross').textContent = fmt(last.totalWithdrawnGross);
+  const cardAssetsBRL         = document.getElementById('cardAssetsBRL');
+  const cardMonthlyBRL        = document.getElementById('cardMonthlyBRL');
+  const cardWithdrawnBRL      = document.getElementById('cardWithdrawnBRL');
+  const cardWithdrawnGrossBRL = document.getElementById('cardWithdrawnGrossBRL');
   if (cotacao > 0) {
-    cardAssetsBRL.textContent    = fmtBRL(last.activeValue, cotacao);
-    cardMonthlyBRL.textContent   = fmtBRL(last.income, cotacao);
-    cardWithdrawnBRL.textContent = fmtBRL(last.totalWithdrawn, cotacao);
+    cardAssetsBRL.textContent         = fmtBRL(last.activeValue, cotacao);
+    cardMonthlyBRL.textContent        = fmtBRL(last.income, cotacao);
+    cardWithdrawnBRL.textContent      = fmtBRL(last.totalWithdrawn, cotacao);
+    cardWithdrawnGrossBRL.textContent = fmtBRL(last.totalWithdrawnGross, cotacao);
     cardAssetsBRL.classList.remove('hidden');
     cardMonthlyBRL.classList.remove('hidden');
     cardWithdrawnBRL.classList.remove('hidden');
+    cardWithdrawnGrossBRL.classList.remove('hidden');
   } else {
     cardAssetsBRL.classList.add('hidden');
     cardMonthlyBRL.classList.add('hidden');
     cardWithdrawnBRL.classList.add('hidden');
+    cardWithdrawnGrossBRL.classList.add('hidden');
   }
   renderChart(monthly);
   renderMonthTable(monthly, cotacao);
@@ -567,10 +679,11 @@ function renderMonthTable(monthly, cotacao) {
   const showBRL = cotacao > 0;
   document.getElementById('thMonthIncBRL').classList.toggle('hidden', !showBRL);
   document.getElementById('thMonthWithBRL').classList.toggle('hidden', !showBRL);
+  document.getElementById('thMonthGrossBRL').classList.toggle('hidden', !showBRL);
   const tbody = document.getElementById('monthTableBody');
   tbody.innerHTML = '';
-  const colCount = showBRL ? 9 : 7;
-  const GROUP = 10;
+  const colCount = showBRL ? 11 : 8;
+  const GROUP = 12;
 
   for (let g = 0; g < Math.ceil(monthly.length / GROUP); g++) {
     const start = g * GROUP;
@@ -582,6 +695,7 @@ function renderMonthTable(monthly, cotacao) {
     const sumIncome    = slice.reduce((s, r) => s + r.income, 0);
     const sumReinvest  = slice.reduce((s, r) => s + r.reinvested, 0);
     const sumWithdrawn = slice.reduce((s, r) => s + r.withdrawn, 0);
+    const sumGross     = slice.reduce((s, r) => s + r.grossWithdrawn, 0);
     const lastR        = monthly[end - 1];
 
     // HTML do cabeçalho expandido (span único)
@@ -589,7 +703,7 @@ function renderMonthTable(monthly, cotacao) {
       '<td colspan="' + colCount + '" class="py-2 px-3">' +
         '<span class="flex items-center gap-2 text-xs font-bold text-slate-300">' +
           '<span class="text-slate-500">▼</span>' +
-          'Meses ' + monthly[start].m + ' – ' + monthly[end - 1].m +
+          'Ano ' + (g + 1) + ' — Meses ' + monthly[start].m + ' – ' + monthly[end - 1].m +
           ' <span class="text-slate-500 font-normal">(' + monthLabel(monthly[start].m) + ' – ' + monthLabel(monthly[end - 1].m) + ')</span>' +
         '</span>' +
       '</td>';
@@ -599,7 +713,7 @@ function renderMonthTable(monthly, cotacao) {
       '<td class="py-2 px-3 whitespace-nowrap">' +
         '<span class="flex items-center gap-2 text-xs font-bold text-slate-300">' +
           '<span class="text-slate-500">▶</span>' +
-          'Meses ' + monthly[start].m + ' – ' + monthly[end - 1].m +
+          'Ano ' + (g + 1) + ' — Meses ' + monthly[start].m + ' – ' + monthly[end - 1].m +
           ' <span class="text-slate-500 font-normal">(' + monthLabel(monthly[start].m) + ' – ' + monthLabel(monthly[end - 1].m) + ')</span>' +
         '</span>' +
       '</td>' +
@@ -608,13 +722,16 @@ function renderMonthTable(monthly, cotacao) {
       '<td class="py-2 pr-3 font-bold text-blue-300 text-xs">' + fmt(sumReinvest) + '</td>' +
       '<td class="py-2 pr-3 font-bold text-amber-300 text-xs">' + fmt(sumWithdrawn) + '</td>' +
       (showBRL ? '<td class="py-2 pr-3 text-yellow-200 text-xs font-semibold">' + fmtBRL(sumWithdrawn, cotacao) + '</td>' : '') +
+      '<td class="py-2 pr-3 font-bold text-orange-300 text-xs">' + fmt(sumGross) + '</td>' +
+      (showBRL ? '<td class="py-2 pr-3 text-orange-200 text-xs font-semibold">' + fmtBRL(sumGross, cotacao) + '</td>' : '') +
       '<td class="py-2 pr-3 text-slate-400 text-xs">' + lastR.activeCount + '</td>' +
       '<td class="py-2 pr-3 font-bold text-white text-xs">' + fmt(lastR.activeValue) + '</td>' +
       '<td class="py-2 font-bold text-violet-300 text-xs">' + fmt(lastR.pendingCash) + '</td>';
 
     const thdr = document.createElement('tr');
     thdr.className = 'group-header';
-    thdr.innerHTML = expandedInner;
+    // Inicia colapsado por padrão
+    thdr.innerHTML = collapsedInner;
     thdr.addEventListener('click', () => {
       const rows = tbody.querySelectorAll('.' + groupId);
       const isHidden = rows[0].classList.contains('hidden');
@@ -628,11 +745,11 @@ function renderMonthTable(monthly, cotacao) {
     });
     tbody.appendChild(thdr);
 
-    // Linhas de dados do grupo
+    // Linhas de dados do grupo — iniciam escondidas (colapsado)
     for (let i = start; i < end; i++) {
       const r  = monthly[i];
       const tr = document.createElement('tr');
-      tr.className = groupId;
+      tr.className = groupId + ' hidden';
       tr.innerHTML =
         '<td class="py-2 pr-3 font-mono text-xs text-slate-500">' + r.m + '<br><span class="text-slate-600">' + monthLabel(r.m) + '</span></td>' +
         '<td class="py-2 pr-3 font-semibold text-emerald-400">' + fmt(r.income) + '</td>' +
@@ -640,6 +757,8 @@ function renderMonthTable(monthly, cotacao) {
         '<td class="py-2 pr-3 text-blue-400">' + fmt(r.reinvested) + '</td>' +
         '<td class="py-2 pr-3 text-amber-400">' + fmt(r.withdrawn) + '</td>' +
         (showBRL ? '<td class="py-2 pr-3 text-yellow-300 text-xs">' + fmtBRL(r.withdrawn, cotacao) + '</td>' : '') +
+        '<td class="py-2 pr-3 text-orange-400">' + fmt(r.grossWithdrawn) + '</td>' +
+        (showBRL ? '<td class="py-2 pr-3 text-orange-300 text-xs">' + fmtBRL(r.grossWithdrawn, cotacao) + '</td>' : '') +
         '<td class="py-2 pr-3 text-slate-300">' + r.activeCount + '</td>' +
         '<td class="py-2 pr-3 font-semibold text-white">' + fmt(r.activeValue) + '</td>' +
         '<td class="py-2 font-mono text-xs text-violet-400">' + fmt(r.pendingCash) + '</td>';
@@ -683,6 +802,8 @@ function exportExcel(type) {
       row['Reinvestido ($)']          = fmt(r.reinvested);
       row['Sacado Líq. ($) -10%']    = fmt(r.withdrawn);
       if (showBRL) row['Sacado Líq. (R$) -10%'] = fmtBRL(r.withdrawn, cotacao);
+      row['Sacado Bruto ($)']         = fmt(r.grossWithdrawn);
+      if (showBRL) row['Sacado Bruto (R$)'] = fmtBRL(r.grossWithdrawn, cotacao);
       row['Pcts. Ativos']             = r.activeCount;
       row['Capital Ativo ($)']        = fmt(r.activeValue);
       row['Caixa Próx. Mês ($)']      = fmt(r.pendingCash);
