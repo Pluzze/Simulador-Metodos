@@ -183,6 +183,11 @@
             </div>
           </div>
           <p class="text-xs text-slate-500 mt-1">Reajuste composto: a cada X meses o saque aumenta % (cumulativo).</p>
+          <div class="space-y-1 mt-3 pt-3 border-t border-slate-600/50">
+            <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Parar saque fixo no mês</label>
+            <input id="fixedWithdrawStopMonth" type="number" value="" min="1" placeholder="Nunca parar (deixe vazio)" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm" />
+            <p class="text-xs text-slate-500">A partir deste mês o saque fixo é encerrado e 100% do rendimento é reinvestido automaticamente.</p>
+          </div>
         </div>
       </div>
 
@@ -244,6 +249,11 @@
                 </div>
               </div>
               <p class="text-xs text-slate-500 mt-1">Reajuste composto: a cada X meses o saque aumenta % (cumulativo).</p>
+              <div class="space-y-1 mt-3 pt-3 border-t border-slate-600/50">
+                <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Parar saque fixo no mês</label>
+                <input id="faseadoFixedStopMonth" type="number" value="" min="1" placeholder="Nunca parar (deixe vazio)" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-white text-sm" />
+                <p class="text-xs text-slate-500">A partir deste mês da simulação o saque fixo é encerrado e 100% é reinvestido automaticamente.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -532,6 +542,8 @@ async function runSimulation() {
   const faseadoFixedAmt             = parseFloat(document.getElementById('faseadoFixedAmt').value)            || 0;
   const faseadoFixedGrowthPct       = parseFloat(document.getElementById('faseadoFixedGrowthPct').value)      || 0;
   const faseadoFixedGrowthInterval  = parseInt(document.getElementById('faseadoFixedGrowthInterval').value)   || 0;
+  const fixedWithdrawStopMonth      = parseInt(document.getElementById('fixedWithdrawStopMonth').value)        || 0;
+  const faseadoFixedStopMonth       = parseInt(document.getElementById('faseadoFixedStopMonth').value)         || 0;
   const fullWithdrawFromMonth       = parseInt(document.getElementById('fullWithdrawFromMonth').value)        || 0;
   const cotacao                     = parseFloat(document.getElementById('cotacaoDolar').value)               || 0;
 
@@ -565,16 +577,20 @@ async function runSimulation() {
       const toReinvestH = income - grossW;
       if (toReinvestH > 0) reinvested = buyWith(toReinvestH, m);
     } else if (strategy === 'fixedW') {
-      let effectiveFixed = fixedWithdrawAmt;
-      if (fixedWithdrawGrowthInterval > 0 && fixedWithdrawGrowthPct > 0) {
-        const periods = Math.floor((m - 1) / fixedWithdrawGrowthInterval);
-        effectiveFixed = fixedWithdrawAmt * Math.pow(1 + fixedWithdrawGrowthPct / 100, periods);
+      if (fixedWithdrawStopMonth > 0 && m >= fixedWithdrawStopMonth) {
+        reinvested = buyWith(income, m);
+      } else {
+        let effectiveFixed = fixedWithdrawAmt;
+        if (fixedWithdrawGrowthInterval > 0 && fixedWithdrawGrowthPct > 0) {
+          const periods = Math.floor((m - 1) / fixedWithdrawGrowthInterval);
+          effectiveFixed = fixedWithdrawAmt * Math.pow(1 + fixedWithdrawGrowthPct / 100, periods);
+        }
+        const grossW = Math.min(income, effectiveFixed / TAX);
+        grossWithdrawn = grossW;
+        withdrawn = grossW * TAX;
+        const toReinvestFW = income - grossW;
+        if (toReinvestFW > 0) reinvested = buyWith(toReinvestFW, m);
       }
-      const grossW = Math.min(income, effectiveFixed / TAX);
-      grossWithdrawn = grossW;
-      withdrawn = grossW * TAX;
-      const toReinvestFW = income - grossW;
-      if (toReinvestFW > 0) reinvested = buyWith(toReinvestFW, m);
     } else if (strategy === 'faseado') {
       if (m <= reinvestPhaseMonths) {
         reinvested = buyWith(income, m);
@@ -588,17 +604,21 @@ async function runSimulation() {
         const toReinvestF = income - grossW;
         if (toReinvestF > 0) reinvested = buyWith(toReinvestF, m);
       } else if (faseadoPost === 'fixedWithdraw') {
-        let effectiveFixed = faseadoFixedAmt;
-        if (faseadoFixedGrowthInterval > 0 && faseadoFixedGrowthPct > 0) {
-          const postM = m - reinvestPhaseMonths;
-          const periods = Math.floor((postM - 1) / faseadoFixedGrowthInterval);
-          effectiveFixed = faseadoFixedAmt * Math.pow(1 + faseadoFixedGrowthPct / 100, periods);
+        if (faseadoFixedStopMonth > 0 && m >= faseadoFixedStopMonth) {
+          reinvested = buyWith(income, m);
+        } else {
+          let effectiveFixed = faseadoFixedAmt;
+          if (faseadoFixedGrowthInterval > 0 && faseadoFixedGrowthPct > 0) {
+            const postM = m - reinvestPhaseMonths;
+            const periods = Math.floor((postM - 1) / faseadoFixedGrowthInterval);
+            effectiveFixed = faseadoFixedAmt * Math.pow(1 + faseadoFixedGrowthPct / 100, periods);
+          }
+          const grossW = Math.min(income, effectiveFixed / TAX);
+          grossWithdrawn = grossW;
+          withdrawn = grossW * TAX;
+          const toReinvestFF = income - grossW;
+          if (toReinvestFF > 0) reinvested = buyWith(toReinvestFF, m);
         }
-        const grossW = Math.min(income, effectiveFixed / TAX);
-        grossWithdrawn = grossW;
-        withdrawn = grossW * TAX;
-        const toReinvestFF = income - grossW;
-        if (toReinvestFF > 0) reinvested = buyWith(toReinvestFF, m);
       }
     }
 
