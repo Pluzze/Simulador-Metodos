@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gfi-calc-v5'; // GFI-FASE5: atualizado para forçar recache após Fases 2-4
+const CACHE_NAME = 'gfi-calc-v6'; // GFI-FASE7B: novo cache para publicar o login com cadastro/recuperação
 
 // Base path relativo ao local do service worker (funciona em localhost E GitHub Pages)
 const BASE = self.registration.scope;
