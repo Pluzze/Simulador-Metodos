@@ -18,6 +18,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- GFI-FASE2: Firebase compat SDK —— NÃO alterar a ordem -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script>tailwind.config = { darkMode: 'class' };</script>
   <style>
     :root { color-scheme: dark; }
@@ -53,6 +57,51 @@
 </head>
 <body class="text-slate-100 min-h-screen dark">
 
+<!-- GFI-FASE2: LOADING SCREEN — exibido enquanto Firebase verifica a sessão -->
+<div id="gfi-loading" style="position:fixed;inset:0;z-index:9999;background:#020617;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+  <div style="width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:22px;box-shadow:0 0 24px rgba(99,102,241,.4)">G</div>
+  <p style="color:#64748b;font-size:14px;animation:fadeUp .5s ease both">Verificando acesso...</p>
+</div>
+
+<!-- GFI-FASE2: LOGIN OVERLAY -->
+<div id="gfi-login" style="display:none;position:fixed;inset:0;z-index:9998;background:#020617;align-items:center;justify-content:center;padding:16px">
+  <div class="glass" style="width:100%;max-width:400px;border-radius:24px;padding:32px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:18px;flex-shrink:0">G</div>
+      <div><p style="font-weight:700;color:#fff;margin:0;line-height:1.2">GFI</p><p style="font-size:12px;color:#94a3b8;margin:0">Calculadora de Investimentos</p></div>
+    </div>
+    <h2 style="font-size:20px;font-weight:700;color:#fff;margin:0">Entrar</h2>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">E-mail</label>
+        <input id="gfi-email" type="email" placeholder="seu@email.com" autocomplete="email"
+          style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px 16px;color:#f1f5f9;font-size:14px;width:100%;box-sizing:border-box" />
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Senha</label>
+        <input id="gfi-password" type="password" placeholder="••••••••" autocomplete="current-password"
+          style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px 16px;color:#f1f5f9;font-size:14px;width:100%;box-sizing:border-box" />
+      </div>
+    </div>
+    <p id="gfi-login-error" style="display:none;font-size:13px;color:#f87171;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:10px 14px;margin:0"></p>
+    <button id="gfi-btn-login" onclick="gfiLogin()"
+      style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:12px;padding:14px;font-weight:700;color:#fff;font-size:14px;cursor:pointer;width:100%;transition:opacity .2s"
+      onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Entrar</button>
+  </div>
+</div>
+
+<!-- GFI-FASE2: ACESSO BLOQUEADO -->
+<div id="gfi-blocked" style="display:none;position:fixed;inset:0;z-index:9998;background:#020617;align-items:center;justify-content:center;padding:16px">
+  <div class="glass" style="width:100%;max-width:400px;border-radius:24px;padding:32px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px">
+    <div style="width:52px;height:52px;border-radius:50%;background:rgba(239,68,68,.15);display:flex;align-items:center;justify-content:center">
+      <svg width="24" height="24" fill="none" stroke="#f87171" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.94L13.75 4a2 2 0 00-3.5 0L3.25 16.06A2 2 0 005.07 19z"/></svg>
+    </div>
+    <h2 style="font-size:18px;font-weight:700;color:#fff;margin:0">Acesso Bloqueado</h2>
+    <p id="gfi-blocked-msg" style="font-size:14px;color:#94a3b8;margin:0"></p>
+    <button onclick="gfiBackToLogin()" style="font-size:12px;color:#60a5fa;background:none;border:none;cursor:pointer;text-decoration:underline;margin-top:4px">Voltar ao login</button>
+  </div>
+</div>
+
 <header class="sticky top-0 z-50 border-b border-slate-800 bg-slate-900/60 backdrop-blur">
   <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
     <div class="flex items-center gap-3">
@@ -60,6 +109,19 @@
       <div><p class="font-bold text-white leading-none">GFI</p><p class="text-xs text-slate-400">Calculadora de Investimentos</p></div>
     </div>
     <div class="flex items-center gap-3">
+      <!-- GFI-FASE2: NAV MENU — exibido após autenticação -->
+      <div id="gfi-nav" style="display:none;align-items:center;gap:8px">
+        <button onclick="gfiShowCalc()" id="gfi-btn-calc"
+          style="font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;background:rgba(51,65,85,.6);border:1px solid rgba(71,85,105,.5);color:#e2e8f0;cursor:pointer"
+          onmouseover="this.style.background='rgba(71,85,105,.8)'" onmouseout="this.style.background='rgba(51,65,85,.6)'">Calculadora</button>
+        <button onclick="gfiShowAdmin()" id="gfi-btn-admin"
+          style="display:none;font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;background:rgba(109,40,217,.3);border:1px solid rgba(139,92,246,.4);color:#c4b5fd;cursor:pointer"
+          onmouseover="this.style.background='rgba(109,40,217,.5)'" onmouseout="this.style.background='rgba(109,40,217,.3)'">Admin</button>
+        <span id="gfi-user-name" style="display:none;font-size:11px;color:#475569;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <button onclick="gfiLogout()"
+          style="font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;background:rgba(127,29,29,.3);border:1px solid rgba(239,68,68,.3);color:#fca5a5;cursor:pointer"
+          onmouseover="this.style.background='rgba(127,29,29,.5)'" onmouseout="this.style.background='rgba(127,29,29,.3)'">Sair</button>
+      </div>
       <button id="btnInstallApp" onclick="installApp()" style="display:none;background:linear-gradient(135deg,#3b82f6,#8b5cf6);box-shadow:0 0 14px rgba(139,92,246,.4)"
         class="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm text-white transition-all active:scale-95">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -73,7 +135,7 @@
   </div>
 </header>
 
-<main class="max-w-6xl mx-auto px-4 py-10 space-y-8">
+<main id="gfi-main" style="display:none" class="max-w-6xl mx-auto px-4 py-10 space-y-8">
 
   <!-- FORM -->
   <section class="glass rounded-2xl p-6 md:p-8">
@@ -261,6 +323,7 @@
     </div>
 
     <div class="mt-6">
+      <!-- GFI-FASE2: PONTO-BLOQUEIO-LOGIN — futuramente verificar auth antes de permitir simular -->
       <button onclick="runSimulation()" class="w-full py-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 rounded-xl font-bold text-white text-base transition-all active:scale-95 shadow-xl shadow-blue-500/20">▶&nbsp; Simular</button>
     </div>
   </section>
@@ -307,7 +370,8 @@
       <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h2 class="text-base font-semibold text-slate-300">Histórico Mensal</h2>
         <div class="flex items-center gap-2">
-          <button onclick="exportExcel('monthly')" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-600/40 text-emerald-400 rounded-lg text-xs font-semibold transition-all">📥 Excel</button>
+          <button onclick="exportExcelDetailed()" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-600/40 text-emerald-400 rounded-lg text-xs font-semibold transition-all">📥 Excel Detalhado</button>
+          <button onclick="exportExcelSummary()" class="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-600/40 text-violet-400 rounded-lg text-xs font-semibold transition-all">📊 Excel Resumido</button>
           <button onclick="toggleSection('monthSection')" class="w-8 h-8 flex items-center justify-center bg-slate-700/50 hover:bg-slate-600/50 rounded-lg text-slate-400 transition-all" title="Recolher/Expandir"><span id="monthSectionIcon">▼</span></button>
         </div>
       </div>
@@ -340,12 +404,61 @@
   GFI Calculadora · PWA · Amortização FIFO · 12,5% a.m.
 </footer>
 
+<!-- GFI-FASE3: PAINEL ADMIN REAL -->
+<section id="gfi-admin-panel" style="display:none" class="max-w-6xl mx-auto px-4 py-10">
+  <div class="glass rounded-2xl p-6 md:p-8" style="display:flex;flex-direction:column;gap:24px">
+
+    <!-- Cabeçalho do painel -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <h2 style="font-size:20px;font-weight:700;color:#fff;margin:0;display:flex;align-items:center;gap:10px">
+        <span style="width:34px;height:34px;border-radius:9px;background:rgba(139,92,246,.2);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="16" height="16" fill="none" stroke="#a78bfa" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        </span>
+        Painel Administrativo
+      </h2>
+      <button onclick="gfiLoadAdminUsers()" id="gfi-admin-refresh-btn"
+        style="font-size:12px;font-weight:600;padding:8px 16px;border-radius:10px;background:rgba(139,92,246,.2);border:1px solid rgba(139,92,246,.4);color:#c4b5fd;cursor:pointer"
+        onmouseover="this.style.background='rgba(139,92,246,.35)'" onmouseout="this.style.background='rgba(139,92,246,.2)'">&#8635; Atualizar</button>
+    </div>
+
+    <!-- Cards de resumo -->
+    <div id="gfi-admin-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px"></div>
+
+    <!-- Estado de carregamento / erro -->
+    <div id="gfi-admin-status" style="text-align:center;color:#64748b;font-size:14px;padding:32px 0">Carregando...</div>
+
+    <!-- Tabela de usuários -->
+    <div id="gfi-admin-table-wrap" style="display:none;overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid #334155">
+            <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap">Nome</th>
+            <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap">E-mail</th>
+            <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap">Role</th>
+            <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap">Status</th>
+            <th style="text-align:right;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap">Simulações</th>
+            <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap">Última Simulação</th>
+            <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap">Último Login</th>
+          </tr>
+        </thead>
+        <tbody id="gfi-admin-tbody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</section>
+
 <script>
+// GFI-FASE2: VARIAVEIS-GLOBAIS-UI — strategy, faseadoPost, chartInst, lastMonthlyData, lastCotacao
 let strategy    = 'reinvest';
 let faseadoPost = 'withdraw100';
 let chartInst   = null;
 let lastMonthlyData = [];
 let lastCotacao     = 0;
+
+// GFI-FASE2: AUTH STATE — variáveis de sessão (atualizadas pelo bloco Firebase no fim do arquivo)
+let currentGFIUser = null;
+let currentGFIRole = null;
 
 function toggleFullWithdraw() {
   const btn   = document.getElementById('btnFullWithdraw');
@@ -466,6 +579,7 @@ function toggleSection(id) {
   icon.textContent = collapsed ? '▶' : '▼';
 }
 
+// ── GFI-FASE2: ENGINE-FIFO — variáveis e funções críticas. NÃO ALTERAR SEM CUIDADO ──
 // Engine
 let packages    = [];
 let pkgCounter  = 0;
@@ -473,12 +587,14 @@ let pendingCash = 0;
 
 function resetEngine() { packages = []; pkgCounter = 0; pendingCash = 0; }
 
+// GFI-FASE2: CRITICO — mkPkg: cria pacote. Teto = value*2.5. NÃO ALTERAR.
 function mkPkg(value, month) {
   return { id: ++pkgCounter, value, ceiling: value * 2.5, remaining: value * 2.5, amortized: 0, status: 'ativo', month };
 }
 function activePackages() { return packages.filter(p => p.status === 'ativo'); }
 function monthlyIncome()  { return activePackages().reduce((s,p) => s + p.value, 0) * 0.125; }
 
+// GFI-FASE2: CRITICO — amortizeFIFO: regra central FIFO. NÃO ALTERAR.
 function amortizeFIFO(profit) {
   let left = profit;
   for (const p of activePackages()) {
@@ -495,6 +611,7 @@ function amortizeFIFO(profit) {
     }
   }
 }
+// GFI-FASE2: CRITICO — buyWith: aloca capital em pacotes $1000/$600/$100. NÃO ALTERAR.
 function buyWith(amount, month) {
   const tiers = [1000, 600, 100];
   let pool = amount + pendingCash;
@@ -511,6 +628,7 @@ function buyWith(amount, month) {
   return actualBought;
 }
 
+// GFI-FASE2: fetchCotacao — busca USD/BRL na awesomeapi. Falha silenciosa.
 async function fetchCotacao() {
   try {
     const resp = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
@@ -525,7 +643,15 @@ async function fetchCotacao() {
   } catch (_) { /* mantém valor manual se API falhar */ }
 }
 
+// GFI-FASE2: PONTO-ENTRADA-PRINCIPAL — runSimulation é a função chamada pelo botão Simular.
+// PONTO-BLOQUEIO-LOGIN: verificação de auth implementada — Fase 2 ✓
+// PONTO-CONTADOR: incrementar contador de simulações no final desta função (após renderResults).
 async function runSimulation() {
+  // GFI-FASE2: BLOQUEIO-LOGIN — bloqueia simulação se usuário não estiver autenticado
+  if (!currentGFIUser || !currentGFIRole) {
+    gfiShowNotification('Você precisa estar logado para usar a calculadora.');
+    return;
+  }
   // Atualiza cotação antes de simular
   await fetchCotacao();
 
@@ -562,6 +688,7 @@ async function runSimulation() {
 
     let withdrawn = 0, reinvested = 0, grossWithdrawn = 0;
 
+    // GFI-FASE2: CONSTANTES-CRITICAS — TAX=0.9(10% saque). 0.125=12.5% rend. 2.5=teto. NÃO ALTERAR.
     const TAX = 0.9; // 10% de taxa sobre saques
 
     // Override: a partir do mês configurado, 100% do rendimento é sacado
@@ -631,9 +758,18 @@ async function runSimulation() {
 
   lastMonthlyData = monthly;
   lastCotacao     = cotacao;
+  // GFI-FASE3: CONTADOR — incrementa simulationCount, lastSimulationAt e updatedAt (fire-and-forget)
+  if (currentGFIUser && currentGFIRole) {
+    gfiDb.collection('users').doc(currentGFIUser.uid).update({
+      simulationCount:  firebase.firestore.FieldValue.increment(1),
+      lastSimulationAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt:        firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(err => console.warn('GFI contador: falha ao incrementar simulação', err));
+  }
   renderResults(monthly, cotacao);
 }
 
+// GFI-FASE2: renderResults — atualiza os 4 cards de resumo e chama renderChart + renderMonthTable.
 function renderResults(monthly, cotacao) {
   const last = monthly[monthly.length - 1];
   document.getElementById('cardAssets').textContent         = fmt(last.activeValue);
@@ -666,6 +802,7 @@ function renderResults(monthly, cotacao) {
   setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
 }
 
+// GFI-FASE2: renderChart — gráfico Chart.js (Capital Ativo, Rendimento Mensal, Sacado Mensal).
 function renderChart(monthly) {
   const ctx = document.getElementById('evolutionChart').getContext('2d');
   if (chartInst) { chartInst.destroy(); chartInst = null; }
@@ -695,6 +832,7 @@ function renderChart(monthly) {
   });
 }
 
+// GFI-FASE2: renderMonthTable — tabela histórica mensal agrupada por ano com collapse.
 function renderMonthTable(monthly, cotacao) {
   const showBRL = cotacao > 0;
   document.getElementById('thMonthIncBRL').classList.toggle('hidden', !showBRL);
@@ -787,6 +925,7 @@ function renderMonthTable(monthly, cotacao) {
   }
 }
 
+// GFI-FASE2: exportExcel — exporta dados para .xlsx usando SheetJS (CDN). Abas: Pacotes + Histórico Mensal.
 function exportExcel(type) {
   if (typeof XLSX === 'undefined') { alert('SheetJS não carregou. Aguarde e tente novamente.'); return; }
   const wb      = XLSX.utils.book_new();
@@ -833,6 +972,235 @@ function exportExcel(type) {
   }
 
   XLSX.writeFile(wb, 'GFI_Simulacao.xlsx');
+}
+
+// GFI-FASE4: Captura todos os parâmetros da simulação para o cabeçalho do Excel Detalhado
+function getSimulationParametersForExport() {
+  const v = id => (document.getElementById(id) || {}).value || '';
+  const n = (id, fallback) => { const val = parseFloat(v(id)); return isNaN(val) ? fallback : val; };
+  const ni = 'Não informado';
+  const na = 'Não se aplica';
+
+  // Estratégia principal
+  const fullWithdrawBtn = document.getElementById('btnFullWithdraw');
+  const isFull100 = fullWithdrawBtn && fullWithdrawBtn.classList.contains('on');
+  const stratMap = { reinvest: '100% Reinvestimento', hybrid: 'Híbrido', fixedW: 'Saque Fixo', faseado: 'Faseado' };
+  const stratLabel = isFull100 ? '100% Saque (todos os meses)' : (stratMap[strategy] || strategy);
+
+  // Faseado pós-fase label
+  const faseadoPostMap = { withdraw100: 'Sacar 100%', hybrid: 'Híbrido (% saque e % reinvest)', fixedWithdraw: 'Saque Valor Fixo' };
+
+  // Data/hora geração
+  const now = new Date();
+  const dtStr = now.toLocaleDateString('pt-BR') + ', ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  // Usuário
+  const userName  = currentGFIUser ? (currentGFIUser.displayName || currentGFIUser.email || ni) : ni;
+  const userEmail = currentGFIUser ? (currentGFIUser.email || ni) : ni;
+
+  // Aportes extras
+  const extraM = v('extraMonths');  const extraA = v('extraAmount');
+  const extraMesLabel = extraM !== '' && parseFloat(extraM) > 0 ? extraM + ' meses' : ni;
+  const extraValLabel = extraA !== '' && parseFloat(extraA) > 0 ? '$' + parseFloat(extraA).toLocaleString('pt-BR', {minimumFractionDigits:2}) + '/mês' : ni;
+
+  // Mês 100% saque
+  const fwMonth = v('fullWithdrawFromMonth');
+  const fwLabel = fwMonth !== '' && parseInt(fwMonth) > 0 ? 'A partir do mês ' + fwMonth : na;
+
+  // Cotação
+  const cot = parseFloat(v('cotacaoDolar'));
+  const cotLabel = !isNaN(cot) && cot > 0 ? 'R$ ' + cot.toLocaleString('pt-BR', {minimumFractionDigits:2}) : ni;
+
+  const rows = [
+    ['Parâmetro', 'Valor'],
+    ['Nome do Usuário', userName],
+    ['E-mail', userEmail],
+    ['Data/Hora de Geração', dtStr],
+    ['', ''],
+    ['Aporte Inicial ($)', n('initialDeposit', ni)],
+    ['Meses de Simulação', n('simMonths', ni)],
+    ['Cotação do Dólar (R$/USD)', cotLabel],
+    ['Estratégia', stratLabel],
+    ['Aportes Extras – Meses', extraMesLabel],
+    ['Aportes Extras – Valor', extraValLabel],
+    ['Mês para iniciar 100% saque', fwLabel],
+    ['', ''],
+  ];
+
+  // Parâmetros específicos da estratégia
+  if (strategy === 'hybrid' && !isFull100) {
+    const wPct  = parseInt(v('withdrawalPct'))  || 0;
+    const rPct  = 100 - wPct;
+    rows.push(['Híbrido – % Saque',          wPct + '%']);
+    rows.push(['Híbrido – % Reinvestimento', rPct + '%']);
+  } else if (strategy !== 'hybrid') {
+    rows.push(['Híbrido – % Saque',          na]);
+    rows.push(['Híbrido – % Reinvestimento', na]);
+  }
+
+  if (strategy === 'fixedW' && !isFull100) {
+    const fAmt   = v('fixedWithdrawAmt');    const fGPct = v('fixedWithdrawGrowthPct');
+    const fGInt  = v('fixedWithdrawGrowthInterval');    const fStop = v('fixedWithdrawStopMonth');
+    rows.push(['Saque Fixo – Valor líq./mês ($)', fAmt !== '' ? '$' + parseFloat(fAmt).toLocaleString('pt-BR',{minimumFractionDigits:2}) : ni]);
+    rows.push(['Saque Fixo – Reajuste (%)',        fGPct  !== '' && fGPct  !== '0' ? fGPct  + '%' : ni]);
+    rows.push(['Saque Fixo – Intervalo reajuste',  fGInt  !== '' ? fGInt  + ' meses' : ni]);
+    rows.push(['Saque Fixo – Parar no mês',        fStop  !== '' ? 'Mês ' + fStop   : 'Nunca']);
+  } else if (strategy !== 'fixedW') {
+    rows.push(['Saque Fixo – Valor líq./mês ($)', na]);
+    rows.push(['Saque Fixo – Reajuste (%)',       na]);
+    rows.push(['Saque Fixo – Intervalo reajuste', na]);
+    rows.push(['Saque Fixo – Parar no mês',       na]);
+  }
+
+  if (strategy === 'faseado' && !isFull100) {
+    const rpM  = v('reinvestPhaseMonths');
+    rows.push(['Faseado – Meses fase reinvestimento', rpM !== '' ? rpM + ' meses' : ni]);
+    rows.push(['Faseado – Estratégia pós-fase',       faseadoPostMap[faseadoPost] || faseadoPost]);
+    if (faseadoPost === 'hybrid') {
+      const fwPct = parseInt(v('faseadoWithdrawPct')) || 0;
+      rows.push(['Faseado Pós-fase – % Saque',          fwPct + '%']);
+      rows.push(['Faseado Pós-fase – % Reinvestimento', (100 - fwPct) + '%']);
+      rows.push(['Faseado Pós-fase – Saque fixo ($)',    na]);
+      rows.push(['Faseado Pós-fase – Reajuste (%)',      na]);
+      rows.push(['Faseado Pós-fase – Intervalo',         na]);
+      rows.push(['Faseado Pós-fase – Parar no mês',      na]);
+    } else if (faseadoPost === 'fixedWithdraw') {
+      const fA = v('faseadoFixedAmt');    const fG = v('faseadoFixedGrowthPct');
+      const fI = v('faseadoFixedGrowthInterval');    const fS = v('faseadoFixedStopMonth');
+      rows.push(['Faseado Pós-fase – % Saque',          na]);
+      rows.push(['Faseado Pós-fase – % Reinvestimento', na]);
+      rows.push(['Faseado Pós-fase – Saque fixo ($)',    fA !== '' ? '$' + parseFloat(fA).toLocaleString('pt-BR',{minimumFractionDigits:2}) : ni]);
+      rows.push(['Faseado Pós-fase – Reajuste (%)',      fG !== '' && fG !== '0' ? fG + '%' : ni]);
+      rows.push(['Faseado Pós-fase – Intervalo',         fI !== '' ? fI + ' meses' : ni]);
+      rows.push(['Faseado Pós-fase – Parar no mês',      fS !== '' ? 'Mês ' + fS : 'Nunca']);
+    } else {
+      rows.push(['Faseado Pós-fase – % Saque',          na]);
+      rows.push(['Faseado Pós-fase – % Reinvestimento', na]);
+      rows.push(['Faseado Pós-fase – Saque fixo ($)',    na]);
+      rows.push(['Faseado Pós-fase – Reajuste (%)',      na]);
+      rows.push(['Faseado Pós-fase – Intervalo',         na]);
+      rows.push(['Faseado Pós-fase – Parar no mês',      na]);
+    }
+  } else if (strategy !== 'faseado') {
+    rows.push(['Faseado – Meses fase reinvestimento',  na]);
+    rows.push(['Faseado – Estratégia pós-fase',        na]);
+    rows.push(['Faseado Pós-fase – % Saque',           na]);
+    rows.push(['Faseado Pós-fase – % Reinvestimento',  na]);
+    rows.push(['Faseado Pós-fase – Saque fixo ($)',     na]);
+    rows.push(['Faseado Pós-fase – Reajuste (%)',       na]);
+    rows.push(['Faseado Pós-fase – Intervalo',          na]);
+    rows.push(['Faseado Pós-fase – Parar no mês',       na]);
+  }
+
+  rows.push(['', '']); // separador antes dos dados
+  return rows;
+}
+
+// GFI-FASE4: Excel Detalhado — cabeçalho de parâmetros + todos os dados existentes
+function exportExcelDetailed() {
+  if (typeof XLSX === 'undefined') { alert('SheetJS não carregou. Aguarde e tente novamente.'); return; }
+  if (!lastMonthlyData || lastMonthlyData.length === 0) {
+    alert('Execute uma simulação antes de exportar.'); return;
+  }
+  const wb      = XLSX.utils.book_new();
+  const cotacao = lastCotacao;
+  const showBRL = cotacao > 0;
+
+  // --- Aba: Histórico Mensal (com cabeçalho de parâmetros) ---
+  const paramRows = getSimulationParametersForExport();
+
+  // Linha de cabeçalho das colunas de dados
+  const colHeaders = ['Mês', 'Período', 'Rendimento ($)'];
+  if (showBRL) colHeaders.push('Rend. (R$)');
+  colHeaders.push('Reinvestido ($)', 'Sacado Líq. ($) -10%');
+  if (showBRL) colHeaders.push('Sacado Líq. (R$) -10%');
+  colHeaders.push('Sacado Bruto ($)');
+  if (showBRL) colHeaders.push('Sacado Bruto (R$)');
+  colHeaders.push('Pcts. Ativos', 'Capital Ativo ($)', 'Caixa Próx. Mês ($)');
+
+  // Linhas de dados
+  const dataRows = lastMonthlyData.map(r => {
+    const row = [
+      r.m,
+      monthLabel(r.m),
+      parseFloat(r.income.toFixed(2)),
+    ];
+    if (showBRL) row.push(parseFloat((r.income * cotacao).toFixed(2)));
+    row.push(
+      parseFloat(r.reinvested.toFixed(2)),
+      parseFloat(r.withdrawn.toFixed(2))
+    );
+    if (showBRL) row.push(parseFloat((r.withdrawn * cotacao).toFixed(2)));
+    row.push(parseFloat(r.grossWithdrawn.toFixed(2)));
+    if (showBRL) row.push(parseFloat((r.grossWithdrawn * cotacao).toFixed(2)));
+    row.push(r.activeCount, parseFloat(r.activeValue.toFixed(2)), parseFloat(r.pendingCash.toFixed(2)));
+    return row;
+  });
+
+  const aoa = [...paramRows, colHeaders, ...dataRows];
+  const ws  = XLSX.utils.aoa_to_sheet(aoa);
+  // Largura mínima das colunas
+  ws['!cols'] = [{ wch: 36 }, { wch: 18 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Histórico Mensal');
+
+  // --- Aba: Pacotes (mantida igual ao código original) ---
+  if (typeof packages !== 'undefined' && packages.length > 0) {
+    const pkgData = packages.map(p => {
+      const row = {
+        'ID': '#' + p.id, 'Mês de Entrada': p.month,
+        'Valor ($)': p.value, 'Teto ($)': p.ceiling,
+        'Saldo Restante ($)': parseFloat(p.remaining.toFixed(2)),
+        'Amortizado ($)': parseFloat(p.amortized.toFixed(2)),
+        'Amortização (%)': parseFloat(((p.amortized / p.ceiling) * 100).toFixed(2)),
+        'Status': p.status,
+      };
+      if (showBRL) {
+        row['Valor (R$)']          = parseFloat((p.value    * cotacao).toFixed(2));
+        row['Saldo Restante (R$)'] = parseFloat((p.remaining* cotacao).toFixed(2));
+      }
+      return row;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pkgData), 'Pacotes');
+  }
+
+  XLSX.writeFile(wb, 'GFI_Simulacao_Detalhada.xlsx');
+}
+
+// GFI-FASE4: Excel Resumido — somente MES, PERIODO, Sacado Líq. (R$) -10%, Sacado Bruto (R$)
+function exportExcelSummary() {
+  if (typeof XLSX === 'undefined') { alert('SheetJS não carregou. Aguarde e tente novamente.'); return; }
+  if (!lastMonthlyData || lastMonthlyData.length === 0) {
+    alert('Execute uma simulação antes de exportar.'); return;
+  }
+  if (!lastCotacao || lastCotacao <= 0 || isNaN(lastCotacao)) {
+    alert('Para exportar o Excel Resumido em reais, informe uma cotação válida e execute a simulação novamente.'); return;
+  }
+  const cotacao = lastCotacao;
+  const wb = XLSX.utils.book_new();
+
+  const colHeaders = ['MES', 'PERIODO', 'Sacado Líq. (R$) -10%', 'Sacado Bruto (R$)'];
+  const dataRows = lastMonthlyData.map(r => [
+    r.m,
+    monthLabel(r.m),
+    parseFloat((r.withdrawn     * cotacao).toFixed(2)),
+    parseFloat((r.grossWithdrawn * cotacao).toFixed(2)),
+  ]);
+
+  const aoa = [colHeaders, ...dataRows];
+  const ws  = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 8 }, { wch: 14 }, { wch: 24 }, { wch: 20 }];
+  // Formatar colunas C e D como número com 2 casas decimais
+  const fmt2 = '#,##0.00';
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let R = 1; R <= range.e.r; R++) {
+    ['C', 'D'].forEach(col => {
+      const cell = ws[col + (R + 1)];
+      if (cell && cell.t === 'n') cell.z = fmt2;
+    });
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Resumo');
+  XLSX.writeFile(wb, 'GFI_Simulacao_Resumida.xlsx');
 }
 
 // PWA Install
@@ -910,6 +1278,7 @@ function showIOSGuide() {
 syncExtraLabels();
 syncInitialDepositBRL();
 fetchCotacao();
+// GFI-FASE2: SERVICE-WORKER — registro do SW para cache PWA offline. CACHE_NAME='gfi-calc-v3' no service-worker.js.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('service-worker.js')
@@ -920,6 +1289,279 @@ if ('serviceWorker' in navigator) {
       .catch(() => {});
   });
 }
+</script>
+
+<script>
+// ============================================================
+// GFI-FASE2: CONFIG FIREBASE
+// IMPORTANTE: Substitua os valores abaixo pelos dados do seu
+// projeto Firebase. Acesse: Firebase Console > Projeto >
+// Configurações > Geral > Apps Web > Configuração do SDK
+// ============================================================
+const firebaseConfig = {
+  apiKey:            "AIzaSyA9qrH7QXS_cCJtPwlN4ET0INLtNC4_UEc",
+  authDomain:        "gfi-calc-investimentos.firebaseapp.com",
+  projectId:         "gfi-calc-investimentos",
+  storageBucket:     "gfi-calc-investimentos.firebasestorage.app",
+  messagingSenderId: "423130469131",
+  appId:             "1:423130469131:web:067ad7ddac945501a1080e"
+};
+
+firebase.initializeApp(firebaseConfig);
+const gfiAuth = firebase.auth();
+const gfiDb   = firebase.firestore();
+
+// ── Funções de controle de UI ─────────────────────────────────────────────
+function gfiHideAll() {
+  document.getElementById('gfi-loading').style.display     = 'none';
+  document.getElementById('gfi-login').style.display       = 'none';
+  document.getElementById('gfi-blocked').style.display     = 'none';
+  document.getElementById('gfi-main').style.display        = 'none';
+  document.getElementById('gfi-admin-panel').style.display = 'none';
+  document.getElementById('gfi-nav').style.display         = 'none';
+}
+
+function gfiShowLogin() {
+  document.getElementById('gfi-login').style.display = 'flex';
+  const errEl = document.getElementById('gfi-login-error');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+  const btn = document.getElementById('gfi-btn-login');
+  if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
+}
+
+function gfiShowBlocked(msg) {
+  document.getElementById('gfi-blocked-msg').textContent = msg;
+  document.getElementById('gfi-blocked').style.display   = 'flex';
+}
+
+function gfiShowApp(userData) {
+  const nav = document.getElementById('gfi-nav');
+  nav.style.display = 'flex';
+  const nameEl = document.getElementById('gfi-user-name');
+  if (nameEl) { nameEl.textContent = userData.name || userData.email || ''; nameEl.style.display = 'inline-block'; }
+  const adminBtn = document.getElementById('gfi-btn-admin');
+  if (adminBtn) adminBtn.style.display = userData.role === 'admin' ? 'inline-flex' : 'none';
+  gfiShowCalc();
+}
+
+function gfiShowCalc() {
+  if (!currentGFIUser) { gfiHideAll(); gfiShowLogin(); return; }
+  document.getElementById('gfi-main').style.display        = 'block';
+  document.getElementById('gfi-admin-panel').style.display = 'none';
+}
+
+function gfiShowAdmin() {
+  if (!currentGFIUser || currentGFIRole !== 'admin') {
+    gfiShowNotification('Acesso restrito ao painel administrativo.');
+    gfiShowCalc();
+    return;
+  }
+  document.getElementById('gfi-main').style.display        = 'none';
+  document.getElementById('gfi-admin-panel').style.display = 'block';
+  gfiLoadAdminUsers();
+}
+
+// GFI-FASE3: Carrega lista de usuários da coleção users para o painel admin
+async function gfiLoadAdminUsers() {
+  if (!currentGFIUser || currentGFIRole !== 'admin') return;
+  const statusEl   = document.getElementById('gfi-admin-status');
+  const tableWrap  = document.getElementById('gfi-admin-table-wrap');
+  const tbody      = document.getElementById('gfi-admin-tbody');
+  const cardsEl    = document.getElementById('gfi-admin-cards');
+  const refreshBtn = document.getElementById('gfi-admin-refresh-btn');
+  if (statusEl)   { statusEl.style.display = 'block'; statusEl.textContent = 'Carregando...'; }
+  if (tableWrap)  tableWrap.style.display = 'none';
+  if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = '↻ Carregando...'; }
+  try {
+    const snap = await gfiDb.collection('users').get();
+    const users = [];
+    snap.forEach(doc => users.push(doc.data()));
+    // Ordenar por simulationCount decrescente (em memória)
+    users.sort((a, b) => (b.simulationCount || 0) - (a.simulationCount || 0));
+
+    // ── Cards de resumo ──────────────────────────────────────────
+    const totalUsers  = users.length;
+    const activeUsers = users.filter(u => u.isActive).length;
+    const totalSims   = users.reduce((acc, u) => acc + (u.simulationCount || 0), 0);
+    let latestSim = null;
+    users.forEach(u => {
+      if (u.lastSimulationAt && u.lastSimulationAt.toDate) {
+        const d = u.lastSimulationAt.toDate();
+        if (!latestSim || d > latestSim) latestSim = d;
+      }
+    });
+    cardsEl.innerHTML = [
+      { label: 'Total de Usuários',   value: totalUsers,                                    color: '#3b82f6', big: true },
+      { label: 'Usuários Ativos',     value: activeUsers,                                   color: '#22c55e', big: true },
+      { label: 'Total de Simulações', value: totalSims,                                     color: '#a78bfa', big: true },
+      { label: 'Última Simulação',    value: latestSim ? gfiFmtDate(latestSim) : 'Nunca',  color: '#f59e0b', big: false }
+    ].map(c => `<div style="background:rgba(30,41,59,.8);border:1px solid rgba(51,65,85,.6);border-radius:14px;padding:16px 18px">
+        <p style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">${c.label}</p>
+        <p style="font-size:${c.big ? '28px' : '16px'};font-weight:800;color:${c.color};margin:0;line-height:1.2">${c.value}</p>
+      </div>`).join('');
+
+    // ── Linhas da tabela ─────────────────────────────────────────
+    tbody.innerHTML = users.map(u => {
+      const name  = gfiEscHtml(u.name  || 'Sem nome');
+      const email = gfiEscHtml(u.email || 'Sem e-mail');
+      const roleLabel =
+        u.role === 'admin' ? '<span style="font-size:11px;font-weight:700;color:#a78bfa;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);border-radius:6px;padding:2px 8px">admin</span>'
+        : u.role === 'user' ? '<span style="font-size:11px;font-weight:700;color:#60a5fa;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:6px;padding:2px 8px">user</span>'
+        : '<span style="font-size:11px;color:#94a3b8">Indefinido</span>';
+      const statusLabel = u.isActive
+        ? '<span style="font-size:12px;font-weight:600;color:#4ade80">&#9679; Ativo</span>'
+        : '<span style="font-size:12px;font-weight:600;color:#f87171">&#9679; Inativo</span>';
+      const sims      = u.simulationCount || 0;
+      const lastSim   = (u.lastSimulationAt && u.lastSimulationAt.toDate) ? gfiFmtDate(u.lastSimulationAt.toDate()) : 'Nunca';
+      const lastLogin = (u.lastLoginAt     && u.lastLoginAt.toDate)       ? gfiFmtDate(u.lastLoginAt.toDate())     : 'Nunca';
+      return `<tr style="border-bottom:1px solid rgba(51,65,85,.4)" onmouseover="this.style.background='rgba(30,41,59,.4)'" onmouseout="this.style.background=''">
+        <td style="padding:10px 12px;color:#e2e8f0;font-weight:500">${name}</td>
+        <td style="padding:10px 12px;color:#94a3b8">${email}</td>
+        <td style="padding:10px 12px">${roleLabel}</td>
+        <td style="padding:10px 12px">${statusLabel}</td>
+        <td style="padding:10px 12px;color:#f8fafc;font-weight:700;text-align:right">${sims}</td>
+        <td style="padding:10px 12px;color:#64748b;font-size:12px;white-space:nowrap">${lastSim}</td>
+        <td style="padding:10px 12px;color:#64748b;font-size:12px;white-space:nowrap">${lastLogin}</td>
+      </tr>`;
+    }).join('');
+
+    if (statusEl)  statusEl.style.display = 'none';
+    if (tableWrap) tableWrap.style.display = 'block';
+  } catch (err) {
+    console.error('GFI Admin: erro ao carregar usuários', err);
+    if (statusEl) statusEl.textContent = 'Erro ao carregar usuários. Verifique as regras do Firestore.';
+  } finally {
+    if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '&#8635; Atualizar'; }
+  }
+}
+
+// GFI-FASE3: Auxiliares do painel admin
+function gfiFmtDate(d) {
+  if (!d) return 'Nunca';
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function gfiEscHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function gfiBackToLogin() {
+  currentGFIUser = null;
+  currentGFIRole = null;
+  gfiHideAll();
+  gfiShowLogin();
+}
+
+function gfiShowNotification(msg) {
+  const existing = document.getElementById('gfi-notification');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'gfi-notification';
+  el.style.cssText = 'position:fixed;top:80px;right:16px;z-index:9999;background:#1e293b;border:1px solid #475569;border-radius:12px;padding:12px 16px;max-width:320px;font-size:13px;color:#f1f5f9;box-shadow:0 4px 20px rgba(0,0,0,.5);animation:fadeUp .3s ease both';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { if (el.parentNode) el.remove(); }, 4000);
+}
+
+// ── Login / Logout ────────────────────────────────────────────────
+async function gfiLogin() {
+  const email    = document.getElementById('gfi-email').value.trim();
+  const password = document.getElementById('gfi-password').value;
+  const errEl    = document.getElementById('gfi-login-error');
+  const btn      = document.getElementById('gfi-btn-login');
+  errEl.style.display = 'none';
+  errEl.textContent   = '';
+  if (!email || !password) {
+    errEl.textContent   = 'Preencha e-mail e senha.';
+    errEl.style.display = 'block';
+    return;
+  }
+  btn.disabled    = true;
+  btn.textContent = 'Entrando...';
+  try {
+    await gfiAuth.signInWithEmailAndPassword(email, password);
+    // onAuthStateChanged cuida do restante
+  } catch (err) {
+    btn.disabled    = false;
+    btn.textContent = 'Entrar';
+    let msg = 'Erro ao fazer login. Verifique suas credenciais.';
+    if (['auth/user-not-found','auth/wrong-password','auth/invalid-credential'].includes(err.code))
+      msg = 'E-mail ou senha incorretos.';
+    else if (err.code === 'auth/invalid-email')
+      msg = 'E-mail inválido.';
+    else if (err.code === 'auth/too-many-requests')
+      msg = 'Muitas tentativas. Aguarde alguns minutos.';
+    errEl.textContent   = msg;
+    errEl.style.display = 'block';
+  }
+}
+
+async function gfiLogout() {
+  try {
+    currentGFIUser = null;
+    currentGFIRole = null;
+    await gfiAuth.signOut();
+    document.getElementById('gfi-password').value = '';
+  } catch (err) {
+    console.error('GFI Logout error:', err);
+  }
+}
+
+// ── Auth State ──────────────────────────────────────────────────────
+// GFI-FASE2: onAuthStateChanged — controlador central de sessão
+firebase.auth().onAuthStateChanged(async (user) => {
+  if (!user) {
+    currentGFIUser = null;
+    currentGFIRole = null;
+    gfiHideAll();
+    gfiShowLogin();
+    return;
+  }
+  try {
+    const docSnap = await gfiDb.collection('users').doc(user.uid).get();
+    if (!docSnap.exists) {
+      await gfiAuth.signOut();
+      gfiHideAll();
+      gfiShowBlocked('Usuário não encontrado no sistema. Entre em contato com o administrador.');
+      return;
+    }
+    const data = docSnap.data();
+    if (!data.isActive) {
+      await gfiAuth.signOut();
+      gfiHideAll();
+      gfiShowBlocked('Sua conta está desativada. Entre em contato com o administrador.');
+      return;
+    }
+    if (data.role !== 'admin' && data.role !== 'user') {
+      await gfiAuth.signOut();
+      gfiHideAll();
+      gfiShowBlocked('Perfil de acesso inválido. Entre em contato com o administrador.');
+      return;
+    }
+    // Atualiza timestamps de acesso (fire-and-forget)
+    gfiDb.collection('users').doc(user.uid).update({
+      lastLoginAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt:   firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(() => {});
+    currentGFIUser = user;
+    currentGFIRole = data.role;
+    gfiHideAll();
+    gfiShowApp(data);
+  } catch (err) {
+    console.error('GFI Auth error:', err);
+    currentGFIUser = null;
+    currentGFIRole = null;
+    gfiHideAll();
+    gfiShowBlocked('Erro ao verificar acesso. Tente recarregar a página.');
+  }
+});
+
+// ── Enter key no formulário de login ──────────────────────────────────
+document.getElementById('gfi-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') gfiLogin();
+});
+document.getElementById('gfi-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('gfi-password').focus();
+});
 </script>
 </body>
 </html>

@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // GFI-FASE3: Verifica se o usuário autenticado tem role = "admin"
+    // PONTO DE ATENÇÃO: get() dentro de regras consome 1 leitura extra por operação.
+    // Para projetos com alto volume, migrar para Custom Claims via Cloud Functions.
+    function isAdmin() {
+      return request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{userId} {
+
+      // Usuário lê o próprio documento OU admin lê qualquer documento
+      allow read: if request.auth != null
+                  && (request.auth.uid == userId || isAdmin());
+
+      // Criação bloqueada pelo front-end (feita apenas via Admin SDK)
+      allow create: if false;
+
+      // Usuário atualiza somente campos permitidos do próprio documento.
+      // Campos protegidos: uid, email, role, isActive, name, createdAt
+      // PONTO DE ATENÇÃO: simulationCount pode ser arbitrariamente alterado
+      // pelo próprio usuário no front-end (sem Cloud Functions). Para validação
+      // rigorosa (ex: só permitir incremento), usar Cloud Functions na Fase 4.
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                        .hasAny(['uid','email','role','isActive','name','createdAt']);
+
+      allow delete: if false;
+    }
+  }
+}

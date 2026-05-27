@@ -1,0 +1,29 @@
+# Dependências Node.js (não precisam ir para o GitHub Pages)
+node_modules/
+package-lock.json
+
+# Servidores e scripts locais de desenvolvimento
+server.js
+gen-icons.js
+
+# Arquivo temporário (dump de config git global, sem uso no projeto)
+er.name
+
+# Relatórios de desenvolvimento por fase (documentação interna, não produção)
+RELATORIO_FASE_*.txt
+
+# Documentação de regras Firestore (a regra real está em firestore.rules)
+FIRESTORE_RULES_FASE_*.txt
+
+# Arquivos de configuração de deploy Firebase (não usados pelo GitHub Pages)
+# Mantidos localmente para poder fazer deploy das rules quando necessário
+# firebase.json
+# firestore.rules
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistemas operacionais
+.DS_Store
+Thumbs.db
