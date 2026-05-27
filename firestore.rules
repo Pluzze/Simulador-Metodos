@@ -2,32 +2,69 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // GFI-FASE3: Verifica se o usuário autenticado tem role = "admin"
-    // PONTO DE ATENÇÃO: get() dentro de regras consome 1 leitura extra por operação.
-    // Para projetos com alto volume, migrar para Custom Claims via Cloud Functions.
+    // Prioriza custom claim admin e mantém fallback por documento.
     function isAdmin() {
-      return request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return request.auth != null && (
+        request.auth.token.admin == true ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
     }
 
     match /users/{userId} {
-
-      // Usuário lê o próprio documento OU admin lê qualquer documento
       allow read: if request.auth != null
                   && (request.auth.uid == userId || isAdmin());
 
-      // Criação bloqueada pelo front-end (feita apenas via Admin SDK)
-      allow create: if false;
+      // FASE 7A: usuário autenticado pode criar o próprio documento já ativo.
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.keys().hasOnly([
+                      'uid',
+                      'name',
+                      'email',
+                      'role',
+                      'isActive',
+                      'simulationCount',
+                      'createdAt',
+                      'updatedAt',
+                      'lastLoginAt',
+                      'lastSimulationAt'
+                    ])
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.email == request.auth.token.email
+                    && request.resource.data.role == 'user'
+                    && request.resource.data.isActive == true
+                    && request.resource.data.simulationCount == 0
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() >= 1
+                    && request.resource.data.name.size() <= 120
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.updatedAt == request.time
+                    && request.resource.data.lastLoginAt == request.time
+                    && request.resource.data.lastSimulationAt == null;
 
-      // Usuário atualiza somente campos permitidos do próprio documento.
-      // Campos protegidos: uid, email, role, isActive, name, createdAt
-      // PONTO DE ATENÇÃO: simulationCount pode ser arbitrariamente alterado
-      // pelo próprio usuário no front-end (sem Cloud Functions). Para validação
-      // rigorosa (ex: só permitir incremento), usar Cloud Functions na Fase 4.
+      // Usuário comum pode atualizar somente timestamps de login ou contador.
       allow update: if request.auth != null
                     && request.auth.uid == userId
-                    && !request.resource.data.diff(resource.data).affectedKeys()
-                        .hasAny(['uid','email','role','isActive','name','createdAt']);
+                    && (
+                      (
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt', 'updatedAt'])
+                        && request.resource.data.lastLoginAt == request.time
+                        && request.resource.data.updatedAt == request.time
+                      )
+                      ||
+                      (
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['simulationCount', 'lastSimulationAt', 'updatedAt'])
+                        && request.resource.data.simulationCount == resource.data.simulationCount + 1
+                        && request.resource.data.lastSimulationAt == request.time
+                        && request.resource.data.updatedAt == request.time
+                      )
+                    )
+                    && request.resource.data.uid == resource.data.uid
+                    && request.resource.data.email == resource.data.email
+                    && request.resource.data.role == resource.data.role
+                    && request.resource.data.isActive == resource.data.isActive
+                    && request.resource.data.name == resource.data.name
+                    && request.resource.data.createdAt == resource.data.createdAt;
 
       allow delete: if false;
     }

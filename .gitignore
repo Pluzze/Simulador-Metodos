@@ -5,6 +5,7 @@ package-lock.json
 # Servidores e scripts locais de desenvolvimento
 server.js
 gen-icons.js
+functions/
 
 # Arquivo temporário (dump de config git global, sem uso no projeto)
 er.name

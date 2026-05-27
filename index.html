@@ -87,6 +87,42 @@
     <button id="gfi-btn-login" onclick="gfiLogin()"
       style="background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;border-radius:12px;padding:14px;font-weight:700;color:#fff;font-size:14px;cursor:pointer;width:100%;transition:opacity .2s"
       onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Entrar</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <button onclick="gfiOpenRegisterModal()" style="font-size:12px;color:#93c5fd;background:none;border:none;cursor:pointer;text-decoration:underline;padding:0">Criar conta</button>
+      <button onclick="gfiOpenResetModal()" style="font-size:12px;color:#c4b5fd;background:none;border:none;cursor:pointer;text-decoration:underline;padding:0">Esqueci minha senha</button>
+    </div>
+  </div>
+</div>
+
+<!-- GFI-FASE7: MODAL CRIAR CONTA -->
+<div id="gfi-register-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(2,6,23,.78);align-items:center;justify-content:center;padding:16px">
+  <div class="glass" style="width:100%;max-width:430px;border-radius:22px;padding:24px;display:flex;flex-direction:column;gap:14px">
+    <h3 style="font-size:18px;font-weight:700;color:#fff;margin:0">Criar conta</h3>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <input id="gfi-register-name" type="text" placeholder="Nome completo" autocomplete="name" style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px 14px;color:#f1f5f9;font-size:14px;width:100%;box-sizing:border-box" />
+      <input id="gfi-register-email" type="email" placeholder="seu@email.com" autocomplete="email" style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px 14px;color:#f1f5f9;font-size:14px;width:100%;box-sizing:border-box" />
+      <input id="gfi-register-password" type="password" placeholder="Senha" autocomplete="new-password" style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px 14px;color:#f1f5f9;font-size:14px;width:100%;box-sizing:border-box" />
+      <input id="gfi-register-password-confirm" type="password" placeholder="Confirmar senha" autocomplete="new-password" style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px 14px;color:#f1f5f9;font-size:14px;width:100%;box-sizing:border-box" />
+    </div>
+    <p id="gfi-register-error" style="display:none;font-size:13px;color:#f87171;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:10px 12px;margin:0"></p>
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button onclick="gfiCloseRegisterModal()" style="font-size:12px;font-weight:600;padding:10px 14px;border-radius:10px;background:rgba(51,65,85,.7);border:1px solid rgba(71,85,105,.5);color:#cbd5e1;cursor:pointer">Cancelar</button>
+      <button id="gfi-btn-register" onclick="gfiRegister()" style="font-size:12px;font-weight:700;padding:10px 14px;border-radius:10px;background:linear-gradient(135deg,#2563eb,#7c3aed);border:none;color:#fff;cursor:pointer">Criar conta</button>
+    </div>
+  </div>
+</div>
+
+<!-- GFI-FASE7: MODAL RECUPERAR SENHA -->
+<div id="gfi-reset-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(2,6,23,.78);align-items:center;justify-content:center;padding:16px">
+  <div class="glass" style="width:100%;max-width:420px;border-radius:22px;padding:24px;display:flex;flex-direction:column;gap:14px">
+    <h3 style="font-size:18px;font-weight:700;color:#fff;margin:0">Recuperar senha</h3>
+    <p style="font-size:13px;color:#94a3b8;margin:0">Informe seu e-mail para enviarmos instruções de redefinição.</p>
+    <input id="gfi-reset-email" type="email" placeholder="seu@email.com" autocomplete="email" style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px 14px;color:#f1f5f9;font-size:14px;width:100%;box-sizing:border-box" />
+    <p id="gfi-reset-error" style="display:none;font-size:13px;color:#f87171;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:10px;padding:10px 12px;margin:0"></p>
+    <div style="display:flex;justify-content:flex-end;gap:10px">
+      <button onclick="gfiCloseResetModal()" style="font-size:12px;font-weight:600;padding:10px 14px;border-radius:10px;background:rgba(51,65,85,.7);border:1px solid rgba(71,85,105,.5);color:#cbd5e1;cursor:pointer">Cancelar</button>
+      <button id="gfi-btn-reset" onclick="gfiSendPasswordReset()" style="font-size:12px;font-weight:700;padding:10px 14px;border-radius:10px;background:linear-gradient(135deg,#0ea5e9,#3b82f6);border:none;color:#fff;cursor:pointer">Enviar e-mail</button>
+    </div>
   </div>
 </div>
 
@@ -459,6 +495,7 @@ let lastCotacao     = 0;
 // GFI-FASE2: AUTH STATE — variáveis de sessão (atualizadas pelo bloco Firebase no fim do arquivo)
 let currentGFIUser = null;
 let currentGFIRole = null;
+let gfiIsCreatingAccount = false;
 
 function toggleFullWithdraw() {
   const btn   = document.getElementById('btnFullWithdraw');
@@ -1319,6 +1356,12 @@ function gfiHideAll() {
   document.getElementById('gfi-main').style.display        = 'none';
   document.getElementById('gfi-admin-panel').style.display = 'none';
   document.getElementById('gfi-nav').style.display         = 'none';
+  const m1 = document.getElementById('gfi-register-modal');
+  const m2 = document.getElementById('gfi-reset-modal');
+  const m3 = document.getElementById('gfi-admin-edit-modal');
+  if (m1) m1.style.display = 'none';
+  if (m2) m2.style.display = 'none';
+  if (m3) m3.style.display = 'none';
 }
 
 function gfiShowLogin() {
@@ -1378,7 +1421,6 @@ async function gfiLoadAdminUsers() {
     snap.forEach(doc => users.push(doc.data()));
     // Ordenar por simulationCount decrescente (em memória)
     users.sort((a, b) => (b.simulationCount || 0) - (a.simulationCount || 0));
-
     // ── Cards de resumo ──────────────────────────────────────────
     const totalUsers  = users.length;
     const activeUsers = users.filter(u => u.isActive).length;
@@ -1410,7 +1452,7 @@ async function gfiLoadAdminUsers() {
         : '<span style="font-size:11px;color:#94a3b8">Indefinido</span>';
       const statusLabel = u.isActive
         ? '<span style="font-size:12px;font-weight:600;color:#4ade80">&#9679; Ativo</span>'
-        : '<span style="font-size:12px;font-weight:600;color:#f87171">&#9679; Inativo</span>';
+        : '<span style="font-size:12px;font-weight:700;color:#fbbf24;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.35);border-radius:999px;padding:3px 10px;display:inline-block">Inativo / Pendente</span>';
       const sims      = u.simulationCount || 0;
       const lastSim   = (u.lastSimulationAt && u.lastSimulationAt.toDate) ? gfiFmtDate(u.lastSimulationAt.toDate()) : 'Nunca';
       const lastLogin = (u.lastLoginAt     && u.lastLoginAt.toDate)       ? gfiFmtDate(u.lastLoginAt.toDate())     : 'Nunca';
@@ -1462,6 +1504,141 @@ function gfiShowNotification(msg) {
   setTimeout(() => { if (el.parentNode) el.remove(); }, 4000);
 }
 
+function gfiOpenRegisterModal() {
+  const el = document.getElementById('gfi-register-modal');
+  if (el) el.style.display = 'flex';
+  const err = document.getElementById('gfi-register-error');
+  if (err) { err.style.display = 'none'; err.textContent = ''; }
+}
+
+function gfiCloseRegisterModal() {
+  const el = document.getElementById('gfi-register-modal');
+  if (el) el.style.display = 'none';
+}
+
+function gfiOpenResetModal() {
+  const el = document.getElementById('gfi-reset-modal');
+  if (el) el.style.display = 'flex';
+  const err = document.getElementById('gfi-reset-error');
+  if (err) { err.style.display = 'none'; err.textContent = ''; }
+}
+
+function gfiCloseResetModal() {
+  const el = document.getElementById('gfi-reset-modal');
+  if (el) el.style.display = 'none';
+}
+
+async function gfiRegister() {
+  const name = (document.getElementById('gfi-register-name').value || '').trim();
+  const email = (document.getElementById('gfi-register-email').value || '').trim();
+  const password = document.getElementById('gfi-register-password').value || '';
+  const passwordConfirm = document.getElementById('gfi-register-password-confirm').value || '';
+  const errEl = document.getElementById('gfi-register-error');
+  const btn = document.getElementById('gfi-btn-register');
+
+  errEl.style.display = 'none';
+  errEl.textContent = '';
+
+  if (!name || !email || !password || !passwordConfirm) {
+    errEl.textContent = 'Preencha nome, e-mail, senha e confirmação.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (password !== passwordConfirm) {
+    errEl.textContent = 'Senha e confirmação devem ser iguais.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (password.length < 6) {
+    errEl.textContent = 'A senha deve ter pelo menos 6 caracteres.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Criando...';
+  gfiIsCreatingAccount = true;
+
+  try {
+    const cred = await gfiAuth.createUserWithEmailAndPassword(email, password);
+    const user = cred.user;
+    if (!user) throw new Error('Falha ao criar usuário no Firebase Auth.');
+
+    await gfiDb.collection('users').doc(user.uid).set({
+      uid: user.uid,
+      name,
+      email: user.email || email,
+      role: 'user',
+      isActive: true,
+      simulationCount: 0,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastLoginAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastSimulationAt: null
+    });
+
+    gfiCloseRegisterModal();
+    currentGFIUser = user;
+    currentGFIRole = 'user';
+    gfiHideAll();
+    gfiShowApp({ name, email, role: 'user' });
+    gfiShowNotification('Usuário criado com sucesso.');
+  } catch (err) {
+    console.error('GFI Register error:', err);
+    if (gfiAuth.currentUser) {
+      try { await gfiAuth.currentUser.delete(); } catch (_) {}
+      try { await gfiAuth.signOut(); } catch (_) {}
+    }
+    let msg = 'Não foi possível criar a conta. Tente novamente.';
+    if (err.code === 'auth/email-already-in-use') msg = 'Este e-mail já está em uso.';
+    else if (err.code === 'auth/invalid-email') msg = 'E-mail inválido.';
+    else if (err.code === 'auth/weak-password') msg = 'Senha fraca. Use pelo menos 6 caracteres.';
+    else if (String(err.message || '').includes('Missing or insufficient permissions')) {
+      msg = 'Cadastro temporariamente indisponível. Contate o administrador para liberar as regras de criação.';
+    } else if (String(err.message || '').includes('PERMISSION_DENIED')) {
+      msg = 'Cadastro temporariamente indisponível. Contate o administrador para liberar as regras de criação.';
+    }
+    errEl.textContent = msg;
+    errEl.style.display = 'block';
+  } finally {
+    gfiIsCreatingAccount = false;
+    btn.disabled = false;
+    btn.textContent = 'Criar conta';
+  }
+}
+
+async function gfiSendPasswordReset() {
+  const email = (document.getElementById('gfi-reset-email').value || '').trim();
+  const errEl = document.getElementById('gfi-reset-error');
+  const btn = document.getElementById('gfi-btn-reset');
+  errEl.style.display = 'none';
+  errEl.textContent = '';
+
+  if (!email) {
+    errEl.textContent = 'Informe um e-mail válido.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  try {
+    await gfiAuth.sendPasswordResetEmail(email);
+  } catch (err) {
+    if (err.code === 'auth/invalid-email') {
+      errEl.textContent = 'E-mail inválido.';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Enviar e-mail';
+      return;
+    }
+  }
+  gfiCloseResetModal();
+  gfiShowNotification('Se este e-mail estiver cadastrado, enviaremos instruções para redefinir sua senha.');
+  btn.disabled = false;
+  btn.textContent = 'Enviar e-mail';
+}
+
 // ── Login / Logout ────────────────────────────────────────────────
 async function gfiLogin() {
   const email    = document.getElementById('gfi-email').value.trim();
@@ -1509,6 +1686,7 @@ async function gfiLogout() {
 // ── Auth State ──────────────────────────────────────────────────────
 // GFI-FASE2: onAuthStateChanged — controlador central de sessão
 firebase.auth().onAuthStateChanged(async (user) => {
+  if (gfiIsCreatingAccount) return;
   if (!user) {
     currentGFIUser = null;
     currentGFIRole = null;
