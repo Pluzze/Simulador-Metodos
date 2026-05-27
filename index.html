@@ -239,6 +239,7 @@
         <button id="btnFaseado"  onclick="setStrategy('faseado')"  class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">📅 Faseado</button>
         <button id="btnHybrid"   onclick="setStrategy('hybrid')"   class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">⚖ Híbrido</button>
         <button id="btnFixedW"   onclick="setStrategy('fixedW')"   class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">💵 Saque Fixo</button>
+        <button id="btnRecoverCapital" onclick="setStrategy('recoverCapital')" class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">🔄 Recuperar Capital</button>
         <button id="btnFullWithdraw" onclick="toggleFullWithdraw()" title="Ativa modo 100% saque a partir do mês 1" class="withdraw-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold text-white">💰 100% Saque</button>
       </div>
 
@@ -354,6 +355,54 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Recuperar Capital -->
+      <div id="recoverCapitalOpts" class="hidden bg-slate-800/50 rounded-xl p-5 space-y-4">
+        <div class="space-y-2">
+          <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Modo de Recuperação</label>
+          <div class="flex gap-3 flex-wrap">
+            <button id="btnRecoverTime"   onclick="setRecoverMode('time')"   class="recover-mode-btn on flex-1 min-w-[120px] rounded-xl border py-2.5 text-sm font-semibold">⏱ Por tempo</button>
+            <button id="btnRecoverTarget" onclick="setRecoverMode('target')" class="recover-mode-btn off flex-1 min-w-[120px] rounded-xl border py-2.5 text-sm font-semibold">🎯 Por valor-alvo</button>
+          </div>
+        </div>
+        <!-- Modo Por tempo -->
+        <div id="recoverTimeOpts" class="space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Percentual de Saque (%)</label>
+              <div class="relative">
+                <input id="recoverTimeWithdrawPct" type="number" value="100" min="0" max="100" step="5" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2.5 text-white text-sm pr-7" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
+              </div>
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Meses Sacando</label>
+              <input id="recoverTimeMonths" type="number" value="8" min="1" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2.5 text-white text-sm" />
+            </div>
+          </div>
+          <p class="text-xs text-slate-500">Após esse período, o sistema passa a reinvestir 100%.</p>
+        </div>
+        <!-- Modo Por valor-alvo -->
+        <div id="recoverTargetOpts" class="hidden space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Valor-alvo a Recuperar ($)</label>
+              <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
+                <input id="recoverTargetAmount" type="number" value="10000" min="1" step="100" class="w-full bg-slate-700 border border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm" />
+              </div>
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Percentual de Saque (%)</label>
+              <div class="relative">
+                <input id="recoverTargetWithdrawPct" type="number" value="60" min="0" max="100" step="5" class="w-full bg-slate-700 border border-slate-600 rounded-xl px-3 py-2.5 text-white text-sm pr-7" />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
+              </div>
+            </div>
+          </div>
+          <p class="text-xs text-slate-500">Quando o saque líquido acumulado atingir o valor-alvo, o sistema passa a reinvestir 100%.</p>
         </div>
       </div>
     </div>
@@ -488,6 +537,7 @@
 // GFI-FASE2: VARIAVEIS-GLOBAIS-UI — strategy, faseadoPost, chartInst, lastMonthlyData, lastCotacao
 let strategy    = 'reinvest';
 let faseadoPost = 'withdraw100';
+let recoverMode = 'time'; // GFI-FASE8: modo da estratégia Recuperar Capital: 'time' | 'target'
 let chartInst   = null;
 let lastMonthlyData = [];
 let lastCotacao     = 0;
@@ -507,13 +557,14 @@ function toggleFullWithdraw() {
     input.value = '';
   } else {
     // Desativa todos os botões de estratégia
-    ['btnReinvest','btnFaseado','btnHybrid','btnFixedW'].forEach(id => {
+    ['btnReinvest','btnFaseado','btnHybrid','btnFixedW','btnRecoverCapital'].forEach(id => {
       const b = document.getElementById(id);
       b.classList.remove('on'); b.classList.add('off');
     });
     document.getElementById('hybridOpts').classList.add('hidden');
     document.getElementById('faseadoOpts').classList.add('hidden');
     document.getElementById('fixedWOpts').classList.add('hidden');
+    document.getElementById('recoverCapitalOpts').classList.add('hidden');
     btn.classList.add('on');
     input.value = 1;
   }
@@ -586,8 +637,8 @@ function syncFaseadoHybrid() {
 
 function setStrategy(s) {
   strategy = s;
-  const btnMap = {reinvest:'btnReinvest',faseado:'btnFaseado',hybrid:'btnHybrid',fixedW:'btnFixedW'};
-  ['reinvest','faseado','hybrid','fixedW'].forEach(k => {
+  const btnMap = {reinvest:'btnReinvest',faseado:'btnFaseado',hybrid:'btnHybrid',fixedW:'btnFixedW',recoverCapital:'btnRecoverCapital'};
+  ['reinvest','faseado','hybrid','fixedW','recoverCapital'].forEach(k => {
     const btn = document.getElementById(btnMap[k]);
     btn.classList.remove('on','off');
     btn.classList.add(k === s ? 'on' : 'off');
@@ -599,6 +650,17 @@ function setStrategy(s) {
   document.getElementById('hybridOpts').classList.toggle('hidden', s !== 'hybrid');
   document.getElementById('faseadoOpts').classList.toggle('hidden', s !== 'faseado');
   document.getElementById('fixedWOpts').classList.toggle('hidden', s !== 'fixedW');
+  document.getElementById('recoverCapitalOpts').classList.toggle('hidden', s !== 'recoverCapital');
+}
+
+// GFI-FASE8: setRecoverMode — alterna entre modo 'time' e 'target' na estratégia Recuperar Capital
+function setRecoverMode(m) {
+  recoverMode = m;
+  const base = ' flex-1 min-w-[120px] rounded-xl border py-2.5 text-sm font-semibold';
+  document.getElementById('btnRecoverTime').className   = 'recover-mode-btn ' + (m === 'time'   ? 'on' : 'off') + base;
+  document.getElementById('btnRecoverTarget').className = 'recover-mode-btn ' + (m === 'target' ? 'on' : 'off') + base;
+  document.getElementById('recoverTimeOpts').classList.toggle('hidden', m !== 'time');
+  document.getElementById('recoverTargetOpts').classList.toggle('hidden', m !== 'target');
 }
 function setFaseadoPost(p) {
   faseadoPost = p;
@@ -710,7 +772,32 @@ async function runSimulation() {
   const fullWithdrawFromMonth       = parseInt(document.getElementById('fullWithdrawFromMonth').value)        || 0;
   const cotacao                     = parseFloat(document.getElementById('cotacaoDolar').value)               || 0;
 
+  // GFI-FASE8: parâmetros da estratégia Recuperar Capital
+  const recoverTimeWithdrawPct  = parseFloat(document.getElementById('recoverTimeWithdrawPct').value);
+  const recoverTimeMonthsVal    = parseInt(document.getElementById('recoverTimeMonths').value);
+  const recoverTargetAmount     = parseFloat(document.getElementById('recoverTargetAmount').value);
+  const recoverTargetWithdrawPct = parseFloat(document.getElementById('recoverTargetWithdrawPct').value);
+
   if (initial < 100) { alert('Aporte inicial mínimo: $100'); return; }
+
+  // GFI-FASE8: validações para Recuperar Capital
+  if (strategy === 'recoverCapital') {
+    if (recoverMode === 'time') {
+      if (isNaN(recoverTimeWithdrawPct) || recoverTimeWithdrawPct < 0 || recoverTimeWithdrawPct > 100) {
+        alert('Informe um percentual de saque entre 0 e 100.'); return;
+      }
+      if (isNaN(recoverTimeMonthsVal) || recoverTimeMonthsVal < 1) {
+        alert('Informe a quantidade de meses da fase de recuperação.'); return;
+      }
+    } else {
+      if (isNaN(recoverTargetAmount) || recoverTargetAmount <= 0) {
+        alert('Informe um valor-alvo maior que zero.'); return;
+      }
+      if (isNaN(recoverTargetWithdrawPct) || recoverTargetWithdrawPct < 0 || recoverTargetWithdrawPct > 100) {
+        alert('Informe um percentual de saque entre 0 e 100.'); return;
+      }
+    }
+  }
   resetEngine();
   buyWith(initial, 0);
 
@@ -782,6 +869,33 @@ async function runSimulation() {
           withdrawn = grossW * TAX;
           const toReinvestFF = income - grossW;
           if (toReinvestFF > 0) reinvested = buyWith(toReinvestFF, m);
+        }
+      }
+    } else if (strategy === 'recoverCapital') {
+      // GFI-FASE8: Recuperar Capital — modo Por tempo
+      if (recoverMode === 'time') {
+        if (m <= recoverTimeMonthsVal) {
+          const grossW = income * (recoverTimeWithdrawPct / 100);
+          grossWithdrawn = grossW;
+          withdrawn = grossW * TAX;
+          const toReinvest = income - grossW;
+          if (toReinvest > 0) reinvested = buyWith(toReinvest, m);
+        } else {
+          reinvested = buyWith(income, m);
+        }
+      } else {
+        // GFI-FASE8: Recuperar Capital — modo Por valor-alvo
+        // Decisão: usa totalWithdrawn ANTES de somar o mês corrente para decidir se ainda saca.
+        // Se o alvo já foi atingido em mês anterior, passa a reinvestir 100%.
+        // Se ultrapassar levemente neste mês, a mudança ocorre no próximo mês.
+        if (totalWithdrawn < recoverTargetAmount) {
+          const grossW = income * (recoverTargetWithdrawPct / 100);
+          grossWithdrawn = grossW;
+          withdrawn = grossW * TAX;
+          const toReinvest = income - grossW;
+          if (toReinvest > 0) reinvested = buyWith(toReinvest, m);
+        } else {
+          reinvested = buyWith(income, m);
         }
       }
     }
@@ -1021,7 +1135,7 @@ function getSimulationParametersForExport() {
   // Estratégia principal
   const fullWithdrawBtn = document.getElementById('btnFullWithdraw');
   const isFull100 = fullWithdrawBtn && fullWithdrawBtn.classList.contains('on');
-  const stratMap = { reinvest: '100% Reinvestimento', hybrid: 'Híbrido', fixedW: 'Saque Fixo', faseado: 'Faseado' };
+  const stratMap = { reinvest: '100% Reinvestimento', hybrid: 'Híbrido', fixedW: 'Saque Fixo', faseado: 'Faseado', recoverCapital: 'Recuperar Capital' };
   const stratLabel = isFull100 ? '100% Saque (todos os meses)' : (stratMap[strategy] || strategy);
 
   // Faseado pós-fase label
@@ -1127,6 +1241,36 @@ function getSimulationParametersForExport() {
     rows.push(['Faseado Pós-fase – Reajuste (%)',       na]);
     rows.push(['Faseado Pós-fase – Intervalo',          na]);
     rows.push(['Faseado Pós-fase – Parar no mês',       na]);
+  }
+
+  // GFI-FASE8: parâmetros do Recuperar Capital no cabeçalho do Excel Detalhado
+  if (strategy === 'recoverCapital' && !isFull100) {
+    const rcMode = recoverMode === 'time' ? 'Por tempo' : 'Por valor-alvo';
+    rows.push(['Recuperar Capital – Modo', rcMode]);
+    if (recoverMode === 'time') {
+      const rcPct   = v('recoverTimeWithdrawPct');
+      const rcMonths = v('recoverTimeMonths');
+      rows.push(['Recuperar Capital – % Saque na fase inicial', rcPct !== '' ? rcPct + '%' : ni]);
+      rows.push(['Recuperar Capital – Meses sacando',           rcMonths !== '' ? rcMonths + ' meses' : ni]);
+      rows.push(['Recuperar Capital – Após período',            'Reinvestir 100%']);
+      rows.push(['Recuperar Capital – Valor-alvo',              na]);
+      rows.push(['Recuperar Capital – Critério de alvo',        na]);
+    } else {
+      const rcTarget = v('recoverTargetAmount');
+      const rcTPct   = v('recoverTargetWithdrawPct');
+      rows.push(['Recuperar Capital – % Saque na fase inicial', rcTPct !== '' ? rcTPct + '%' : ni]);
+      rows.push(['Recuperar Capital – Meses sacando',           na]);
+      rows.push(['Recuperar Capital – Após período',            'Reinvestir 100%']);
+      rows.push(['Recuperar Capital – Valor-alvo',              rcTarget !== '' ? '$' + parseFloat(rcTarget).toLocaleString('pt-BR',{minimumFractionDigits:2}) : ni]);
+      rows.push(['Recuperar Capital – Critério de alvo',        'Saque líquido acumulado']);
+    }
+  } else if (strategy !== 'recoverCapital') {
+    rows.push(['Recuperar Capital – Modo',                     na]);
+    rows.push(['Recuperar Capital – % Saque na fase inicial',  na]);
+    rows.push(['Recuperar Capital – Meses sacando',            na]);
+    rows.push(['Recuperar Capital – Após período',             na]);
+    rows.push(['Recuperar Capital – Valor-alvo',               na]);
+    rows.push(['Recuperar Capital – Critério de alvo',         na]);
   }
 
   rows.push(['', '']); // separador antes dos dados
