@@ -2,19 +2,20 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Prioriza custom claim admin e mantém fallback por documento.
+    // A autorização administrativa depende também do perfil ativo no Firestore.
+    // Isso impede que uma custom claim antiga mantenha acesso após a desativação.
     function isAdmin() {
-      return request.auth != null && (
-        request.auth.token.admin == true ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      );
+      return request.auth != null
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true;
     }
 
     match /users/{userId} {
       allow read: if request.auth != null
                   && (request.auth.uid == userId || isAdmin());
 
-      // FASE 7A: usuário autenticado pode criar o próprio documento já ativo.
+      // Todo novo cadastro entra pendente. Somente um administrador pode ativá-lo
+      // por meio da Cloud Function protegida.
       allow create: if request.auth != null
                     && request.auth.uid == userId
                     && request.resource.data.keys().hasOnly([
@@ -32,7 +33,7 @@ service cloud.firestore {
                     && request.resource.data.uid == request.auth.uid
                     && request.resource.data.email == request.auth.token.email
                     && request.resource.data.role == 'user'
-                    && request.resource.data.isActive == true
+                    && request.resource.data.isActive == false
                     && request.resource.data.simulationCount == 0
                     && request.resource.data.name is string
                     && request.resource.data.name.size() >= 1
@@ -42,29 +43,42 @@ service cloud.firestore {
                     && request.resource.data.lastLoginAt == request.time
                     && request.resource.data.lastSimulationAt == null;
 
-      // Usuário comum pode atualizar somente timestamps de login ou contador.
+      // Usuário ativo atualiza apenas seus próprios registros de acesso/simulação.
+      // Administradores ativos podem alterar somente o status de outra conta.
       allow update: if request.auth != null
-                    && request.auth.uid == userId
                     && (
                       (
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt', 'updatedAt'])
-                        && request.resource.data.lastLoginAt == request.time
-                        && request.resource.data.updatedAt == request.time
+                        request.auth.uid == userId
+                        && resource.data.isActive == true
+                        && (
+                          (
+                            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt', 'updatedAt'])
+                            && request.resource.data.lastLoginAt == request.time
+                            && request.resource.data.updatedAt == request.time
+                          )
+                          ||
+                          (
+                            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['simulationCount', 'lastSimulationAt', 'updatedAt'])
+                            && request.resource.data.simulationCount == resource.data.simulationCount + 1
+                            && request.resource.data.lastSimulationAt == request.time
+                            && request.resource.data.updatedAt == request.time
+                          )
+                        )
+                        && request.resource.data.uid == resource.data.uid
+                        && request.resource.data.email == resource.data.email
+                        && request.resource.data.role == resource.data.role
+                        && request.resource.data.isActive == resource.data.isActive
+                        && request.resource.data.name == resource.data.name
+                        && request.resource.data.createdAt == resource.data.createdAt
                       )
                       ||
                       (
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['simulationCount', 'lastSimulationAt', 'updatedAt'])
-                        && request.resource.data.simulationCount == resource.data.simulationCount + 1
-                        && request.resource.data.lastSimulationAt == request.time
+                        isAdmin()
+                        && request.auth.uid != userId
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive', 'updatedAt'])
                         && request.resource.data.updatedAt == request.time
                       )
-                    )
-                    && request.resource.data.uid == resource.data.uid
-                    && request.resource.data.email == resource.data.email
-                    && request.resource.data.role == resource.data.role
-                    && request.resource.data.isActive == resource.data.isActive
-                    && request.resource.data.name == resource.data.name
-                    && request.resource.data.createdAt == resource.data.createdAt;
+                    );
 
       allow delete: if false;
     }

@@ -524,6 +524,7 @@
             <th style="text-align:right;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap">Simulações</th>
             <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap">Última Simulação</th>
             <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap">Último Login</th>
+            <th style="text-align:right;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap">Ação</th>
           </tr>
         </thead>
         <tbody id="gfi-admin-tbody"></tbody>
@@ -545,6 +546,7 @@ let lastCotacao     = 0;
 // GFI-FASE2: AUTH STATE — variáveis de sessão (atualizadas pelo bloco Firebase no fim do arquivo)
 let currentGFIUser = null;
 let currentGFIRole = null;
+let currentGFIIsActive = false;
 let gfiIsCreatingAccount = false;
 
 function toggleFullWithdraw() {
@@ -1532,7 +1534,7 @@ function gfiShowApp(userData) {
 }
 
 function gfiShowCalc() {
-  if (!currentGFIUser) { gfiHideAll(); gfiShowLogin(); return; }
+  if (!currentGFIUser || !currentGFIIsActive) { gfiHideAll(); gfiShowLogin(); return; }
   document.getElementById('gfi-main').style.display        = 'block';
   document.getElementById('gfi-admin-panel').style.display = 'none';
 }
@@ -1562,7 +1564,7 @@ async function gfiLoadAdminUsers() {
   try {
     const snap = await gfiDb.collection('users').get();
     const users = [];
-    snap.forEach(doc => users.push(doc.data()));
+    snap.forEach(doc => users.push({ ...doc.data(), _id: doc.id }));
     // Ordenar por simulationCount decrescente (em memória)
     users.sort((a, b) => (b.simulationCount || 0) - (a.simulationCount || 0));
     // ── Cards de resumo ──────────────────────────────────────────
@@ -1600,6 +1602,11 @@ async function gfiLoadAdminUsers() {
       const sims      = u.simulationCount || 0;
       const lastSim   = (u.lastSimulationAt && u.lastSimulationAt.toDate) ? gfiFmtDate(u.lastSimulationAt.toDate()) : 'Nunca';
       const lastLogin = (u.lastLoginAt     && u.lastLoginAt.toDate)       ? gfiFmtDate(u.lastLoginAt.toDate())     : 'Nunca';
+      const actionLabel = u.isActive ? 'Desativar' : 'Ativar';
+      const actionColor = u.isActive ? '#fca5a5' : '#86efac';
+      const actionBg = u.isActive ? 'rgba(239,68,68,.12)' : 'rgba(34,197,94,.12)';
+      const actionBorder = u.isActive ? 'rgba(239,68,68,.35)' : 'rgba(34,197,94,.35)';
+      const action = `<button type="button" onclick="gfiToggleUserActive('${gfiEscJs(u._id)}', ${u.isActive ? 'true' : 'false'}, '${gfiEscJs(u.email || u.name || 'este usuário')}')" style="font-size:12px;font-weight:700;padding:6px 10px;border-radius:8px;background:${actionBg};border:1px solid ${actionBorder};color:${actionColor};cursor:pointer">${actionLabel}</button>`;
       return `<tr style="border-bottom:1px solid rgba(51,65,85,.4)" onmouseover="this.style.background='rgba(30,41,59,.4)'" onmouseout="this.style.background=''">
         <td style="padding:10px 12px;color:#e2e8f0;font-weight:500">${name}</td>
         <td style="padding:10px 12px;color:#94a3b8">${email}</td>
@@ -1608,6 +1615,7 @@ async function gfiLoadAdminUsers() {
         <td style="padding:10px 12px;color:#f8fafc;font-weight:700;text-align:right">${sims}</td>
         <td style="padding:10px 12px;color:#64748b;font-size:12px;white-space:nowrap">${lastSim}</td>
         <td style="padding:10px 12px;color:#64748b;font-size:12px;white-space:nowrap">${lastLogin}</td>
+        <td style="padding:10px 12px;text-align:right">${action}</td>
       </tr>`;
     }).join('');
 
@@ -1629,10 +1637,36 @@ function gfiFmtDate(d) {
 function gfiEscHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+function gfiEscJs(s) {
+  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' ');
+}
+
+async function gfiToggleUserActive(uid, isActive, label) {
+  if (!currentGFIUser || currentGFIRole !== 'admin' || !currentGFIIsActive) {
+    gfiShowNotification('Acesso restrito ao painel administrativo.');
+    return;
+  }
+  const nextIsActive = !isActive;
+  const action = nextIsActive ? 'ativar' : 'desativar';
+  if (!window.confirm(`Confirma ${action} ${label}?`)) return;
+  try {
+    await gfiDb.collection('users').doc(uid).update({
+      isActive: nextIsActive,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    gfiShowNotification(`Usuário ${nextIsActive ? 'ativado' : 'desativado'} com sucesso.`);
+    await gfiLoadAdminUsers();
+  } catch (err) {
+    console.error('GFI Admin: erro ao alterar status do usuário', err);
+    const msg = err && err.message ? err.message : 'Não foi possível alterar o status do usuário.';
+    gfiShowNotification(msg);
+  }
+}
 
 function gfiBackToLogin() {
   currentGFIUser = null;
   currentGFIRole = null;
+  currentGFIIsActive = false;
   gfiHideAll();
   gfiShowLogin();
 }
@@ -1713,7 +1747,7 @@ async function gfiRegister() {
       name,
       email: user.email || email,
       role: 'user',
-      isActive: true,
+      isActive: false,
       simulationCount: 0,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1721,12 +1755,13 @@ async function gfiRegister() {
       lastSimulationAt: null
     });
 
+    await gfiAuth.signOut();
     gfiCloseRegisterModal();
-    currentGFIUser = user;
-    currentGFIRole = 'user';
+    currentGFIUser = null;
+    currentGFIRole = null;
+    currentGFIIsActive = false;
     gfiHideAll();
-    gfiShowApp({ name, email, role: 'user' });
-    gfiShowNotification('Usuário criado com sucesso.');
+    gfiShowBlocked('Cadastro recebido. Aguarde a ativação da sua conta por um administrador.');
   } catch (err) {
     console.error('GFI Register error:', err);
     if (gfiAuth.currentUser) {
@@ -1820,6 +1855,7 @@ async function gfiLogout() {
   try {
     currentGFIUser = null;
     currentGFIRole = null;
+    currentGFIIsActive = false;
     await gfiAuth.signOut();
     document.getElementById('gfi-password').value = '';
   } catch (err) {
@@ -1834,6 +1870,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
   if (!user) {
     currentGFIUser = null;
     currentGFIRole = null;
+    currentGFIIsActive = false;
     gfiHideAll();
     gfiShowLogin();
     return;
@@ -1849,6 +1886,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
     const data = docSnap.data();
     if (!data.isActive) {
       await gfiAuth.signOut();
+      currentGFIIsActive = false;
       gfiHideAll();
       gfiShowBlocked('Sua conta está desativada. Entre em contato com o administrador.');
       return;
@@ -1866,12 +1904,14 @@ firebase.auth().onAuthStateChanged(async (user) => {
     }).catch(() => {});
     currentGFIUser = user;
     currentGFIRole = data.role;
+    currentGFIIsActive = true;
     gfiHideAll();
     gfiShowApp(data);
   } catch (err) {
     console.error('GFI Auth error:', err);
     currentGFIUser = null;
     currentGFIRole = null;
+    currentGFIIsActive = false;
     gfiHideAll();
     gfiShowBlocked('Erro ao verificar acesso. Tente recarregar a página.');
   }
