@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gfi-calc-v7'; // GFI-FASE8: novo cache para publicar a estrategia Recuperar Capital
+const CACHE_NAME = 'gfi-calc-v8'; // Nova versão com a estratégia Consórcio
 
 // Base path relativo ao local do service worker (funciona em localhost E GitHub Pages)
 const BASE = self.registration.scope;

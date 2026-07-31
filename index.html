@@ -44,6 +44,7 @@
     .withdraw-btn.on  { background: linear-gradient(135deg,#f59e0b,#ef4444); border-color: transparent; box-shadow: 0 0 14px rgba(245,158,11,.35); }
     .withdraw-btn.off { background: #1e293b; border-color: #334155; }
     .withdraw-btn.off:hover { background: #273549; }
+    button:disabled, input:disabled { opacity: .55; cursor: not-allowed; }
     input[type=range] { accent-color: #3b82f6; }
     input[type=number],input[type=text] { transition: border-color .15s,box-shadow .15s; }
     input:focus { outline: none; border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59,130,246,.2); }
@@ -181,11 +182,11 @@
     </h2>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
 
-      <div class="space-y-1.5">
+      <div id="initialDepositGroup" class="space-y-1.5">
         <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Aporte Inicial ($)</label>
         <input id="initialDeposit" type="number" value="1000" min="100" step="100" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm" oninput="syncInitialDepositBRL()" />
         <p id="initialDepositBRL" class="text-xs text-yellow-300 font-medium"></p>
-        <p class="text-xs text-slate-500">Mín. $100 · pacotes $100, $600 ou $1.000</p>
+        <p id="initialDepositHelp" class="text-xs text-slate-500">Mín. $100 · pacotes $100, $600 ou $1.000</p>
       </div>
 
       <div class="space-y-1.5">
@@ -203,7 +204,7 @@
         <p class="text-xs text-slate-500">Conversão BRL exibida nas tabelas</p>
       </div>
 
-      <div class="space-y-1.5">
+      <div id="extraContributionGroup" class="space-y-1.5">
         <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Aportes Mensais Extras</label>
         <div class="flex gap-2">
           <div class="relative flex-1">
@@ -222,7 +223,7 @@
     </div>
 
     <!-- Mês para iniciar 100% saque (fora da seção de estratégia) -->
-    <div class="mt-6 flex items-end gap-3">
+    <div id="fullWithdrawGroup" class="mt-6 flex items-end gap-3">
       <div class="space-y-1.5 w-56">
         <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Mês para iniciar 100% saque</label>
         <input id="fullWithdrawFromMonth" type="number" value="" min="1" placeholder="Desativado" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm" />
@@ -240,7 +241,35 @@
         <button id="btnHybrid"   onclick="setStrategy('hybrid')"   class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">⚖ Híbrido</button>
         <button id="btnFixedW"   onclick="setStrategy('fixedW')"   class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">💵 Saque Fixo</button>
         <button id="btnRecoverCapital" onclick="setStrategy('recoverCapital')" class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">🔄 Recuperar Capital</button>
+        <button id="btnConsorcio" onclick="setStrategy('consorcio')" class="strat-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold">🤝 Consórcio</button>
         <button id="btnFullWithdraw" onclick="toggleFullWithdraw()" title="Ativa modo 100% saque a partir do mês 1" class="withdraw-btn off flex-1 min-w-[130px] rounded-xl border py-3 text-sm font-semibold text-white">💰 100% Saque</button>
+      </div>
+
+      <!-- Consórcio GFI -->
+      <div id="consorcioOpts" class="hidden bg-slate-800/50 rounded-xl p-5 space-y-5">
+        <div class="rounded-xl border border-violet-500/20 bg-violet-500/10 p-4">
+          <p class="text-sm font-semibold text-violet-200">Contrato fixo de US$ 2.400</p>
+          <p class="text-xs text-slate-400 mt-1">Gera US$ 250 por mês durante 20 meses, com teto total de US$ 5.000.</p>
+        </div>
+        <div class="space-y-2">
+          <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Modalidade do Consórcio</label>
+          <div class="flex gap-3 flex-wrap">
+            <button id="btnConsorcioReinvest" onclick="setConsorcioMode('reinvest')" class="phase-btn on flex-1 min-w-[160px] rounded-xl border py-2.5 text-sm font-semibold">♻ 100% Reinvestimento</button>
+            <button id="btnConsorcioWithdraw" onclick="setConsorcioMode('withdraw100')" class="phase-btn off flex-1 min-w-[160px] rounded-xl border py-2.5 text-sm font-semibold">💰 100% Saque</button>
+          </div>
+        </div>
+        <div id="consorcioFixedOpts" class="space-y-1.5 bg-slate-700/40 rounded-xl p-4">
+          <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Saque bruto mensal para pagar o consórcio ($)</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
+            <input id="consorcioFixedWithdraw" type="number" value="0" min="0" max="250" step="1" class="w-full bg-slate-700 border border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm" oninput="syncConsorcioFixedBRL()" />
+          </div>
+          <p id="consorcioFixedBRL" class="text-xs text-yellow-300 font-medium"></p>
+          <p class="text-xs text-slate-500">O valor informado sai integralmente, sem novo desconto de 10%. Todo o saldo restante é reinvestido.</p>
+        </div>
+        <div id="consorcioWithdrawHelp" class="hidden rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+          <p class="text-xs text-amber-100">Os US$ 250 mensais são sacados integralmente. A taxa de 10% resulta em US$ 225 líquidos por mês.</p>
+        </div>
       </div>
 
       <!-- Híbrido (todos os meses) -->
@@ -422,25 +451,25 @@
         <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Patrimônio Total Ativo</p>
         <p id="cardAssets" class="text-3xl font-black text-white mt-1">—</p>
         <p id="cardAssetsBRL" class="text-sm font-semibold text-yellow-300 mt-1 hidden">—</p>
-        <p class="text-xs text-slate-500 mt-2">Capital nos pacotes ativos</p>
+        <p id="cardAssetsHint" class="text-xs text-slate-500 mt-2">Capital nos pacotes ativos</p>
       </div>
       <div class="glass rounded-2xl p-6">
         <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Ganho Mensal Atual</p>
         <p id="cardMonthly" class="text-3xl font-black text-emerald-400 mt-1">—</p>
         <p id="cardMonthlyBRL" class="text-sm font-semibold text-yellow-300 mt-1 hidden">—</p>
-        <p class="text-xs text-slate-500 mt-2">12,5% dos pacotes ativos</p>
+        <p id="cardMonthlyHint" class="text-xs text-slate-500 mt-2">12,5% dos pacotes ativos</p>
       </div>
       <div class="glass rounded-2xl p-6">
         <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Sacado Líquido</p>
         <p id="cardWithdrawn" class="text-3xl font-black text-amber-400 mt-1">—</p>
         <p id="cardWithdrawnBRL" class="text-sm font-semibold text-yellow-300 mt-1 hidden">—</p>
-        <p class="text-xs text-slate-500 mt-2">Acumulado líquido <span class="text-orange-400">(taxa 10% descontada)</span></p>
+        <p id="cardWithdrawnHint" class="text-xs text-slate-500 mt-2">Acumulado líquido <span class="text-orange-400">(taxa 10% descontada)</span></p>
       </div>
       <div class="glass rounded-2xl p-6">
         <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Sacado Bruto Total</p>
         <p id="cardWithdrawnGross" class="text-3xl font-black text-orange-400 mt-1">—</p>
         <p id="cardWithdrawnGrossBRL" class="text-sm font-semibold text-yellow-300 mt-1 hidden">—</p>
-        <p class="text-xs text-slate-500 mt-2">Soma bruta <span class="text-orange-400">(antes da taxa)</span></p>
+        <p id="cardGrossHint" class="text-xs text-slate-500 mt-2">Soma bruta <span class="text-orange-400">(antes da taxa)</span></p>
       </div>
     </section>
 
@@ -468,11 +497,11 @@
               <th class="pb-3 pr-3 font-medium">Rendimento ($)</th>
               <th id="thMonthIncBRL" class="pb-3 pr-3 font-medium hidden">Rend. (R$)</th>
               <th class="pb-3 pr-3 font-medium">Reinvestido ($)</th>
-              <th class="pb-3 pr-3 font-medium">Sacado Líq. ($) <span class="text-orange-400 normal-case">-10%</span></th>
+              <th id="thMonthWithdrawn" class="pb-3 pr-3 font-medium">Sacado Líq. ($) <span class="text-orange-400 normal-case">-10%</span></th>
               <th id="thMonthWithBRL" class="pb-3 pr-3 font-medium hidden">Sacado Líq. (R$) <span class="text-orange-400 normal-case">-10%</span></th>
               <th class="pb-3 pr-3 font-medium text-orange-300">Sacado Bruto ($)</th>
               <th id="thMonthGrossBRL" class="pb-3 pr-3 font-medium text-orange-200 hidden">Sacado Bruto (R$)</th>
-              <th class="pb-3 pr-3 font-medium">Pcts. Ativos</th>
+              <th id="thMonthActiveCount" class="pb-3 pr-3 font-medium">Pcts. Ativos</th>
               <th class="pb-3 pr-3 font-medium">Capital Ativo ($)</th>
               <th class="pb-3 font-medium text-violet-400">Caixa Próx. Mês ($)</th>
             </tr>
@@ -539,6 +568,8 @@
 let strategy    = 'reinvest';
 let faseadoPost = 'withdraw100';
 let recoverMode = 'time'; // GFI-FASE8: modo da estratégia Recuperar Capital: 'time' | 'target'
+let consorcioMode = 'reinvest'; // 'reinvest' | 'withdraw100'
+let preConsorcioInputs = null;
 let chartInst   = null;
 let lastMonthlyData = [];
 let lastCotacao     = 0;
@@ -550,6 +581,7 @@ let currentGFIIsActive = false;
 let gfiIsCreatingAccount = false;
 
 function toggleFullWithdraw() {
+  if (strategy === 'consorcio') return;
   const btn   = document.getElementById('btnFullWithdraw');
   const input = document.getElementById('fullWithdrawFromMonth');
   const isOn  = btn.classList.contains('on');
@@ -559,7 +591,7 @@ function toggleFullWithdraw() {
     input.value = '';
   } else {
     // Desativa todos os botões de estratégia
-    ['btnReinvest','btnFaseado','btnHybrid','btnFixedW','btnRecoverCapital'].forEach(id => {
+    ['btnReinvest','btnFaseado','btnHybrid','btnFixedW','btnRecoverCapital','btnConsorcio'].forEach(id => {
       const b = document.getElementById(id);
       b.classList.remove('on'); b.classList.add('off');
     });
@@ -567,6 +599,7 @@ function toggleFullWithdraw() {
     document.getElementById('faseadoOpts').classList.add('hidden');
     document.getElementById('fixedWOpts').classList.add('hidden');
     document.getElementById('recoverCapitalOpts').classList.add('hidden');
+    document.getElementById('consorcioOpts').classList.add('hidden');
     btn.classList.add('on');
     input.value = 1;
   }
@@ -598,6 +631,12 @@ function syncFaseadoFixedBRL() {
   const el = document.getElementById('faseadoFixedBRL');
   if (el) el.textContent = cotacao > 0 && amt > 0 ? '≈ ' + fmtBRL(amt, cotacao) : '';
 }
+function syncConsorcioFixedBRL() {
+  const amt = parseFloat(document.getElementById('consorcioFixedWithdraw').value) || 0;
+  const cotacao = parseFloat(document.getElementById('cotacaoDolar').value) || 0;
+  const el = document.getElementById('consorcioFixedBRL');
+  if (el) el.textContent = cotacao > 0 && amt > 0 ? '≈ ' + fmtBRL(amt, cotacao) : '';
+}
 function syncInitialDepositBRL() {
   const amt = parseFloat(document.getElementById('initialDeposit').value) || 0;
   const cotacao = parseFloat(document.getElementById('cotacaoDolar').value) || 0;
@@ -613,6 +652,7 @@ function syncExtraAmountBRL() {
 function syncAllFixedBRL() {
   syncFixedWithdrawBRL();
   syncFaseadoFixedBRL();
+  syncConsorcioFixedBRL();
   syncInitialDepositBRL();
   syncExtraAmountBRL();
 }
@@ -638,9 +678,12 @@ function syncFaseadoHybrid() {
 }
 
 function setStrategy(s) {
+  const wasConsorcio = strategy === 'consorcio';
+  if (!wasConsorcio && s === 'consorcio') enterConsorcioInputs();
+  if (wasConsorcio && s !== 'consorcio') leaveConsorcioInputs();
   strategy = s;
-  const btnMap = {reinvest:'btnReinvest',faseado:'btnFaseado',hybrid:'btnHybrid',fixedW:'btnFixedW',recoverCapital:'btnRecoverCapital'};
-  ['reinvest','faseado','hybrid','fixedW','recoverCapital'].forEach(k => {
+  const btnMap = {reinvest:'btnReinvest',faseado:'btnFaseado',hybrid:'btnHybrid',fixedW:'btnFixedW',recoverCapital:'btnRecoverCapital',consorcio:'btnConsorcio'};
+  ['reinvest','faseado','hybrid','fixedW','recoverCapital','consorcio'].forEach(k => {
     const btn = document.getElementById(btnMap[k]);
     btn.classList.remove('on','off');
     btn.classList.add(k === s ? 'on' : 'off');
@@ -653,6 +696,57 @@ function setStrategy(s) {
   document.getElementById('faseadoOpts').classList.toggle('hidden', s !== 'faseado');
   document.getElementById('fixedWOpts').classList.toggle('hidden', s !== 'fixedW');
   document.getElementById('recoverCapitalOpts').classList.toggle('hidden', s !== 'recoverCapital');
+  document.getElementById('consorcioOpts').classList.toggle('hidden', s !== 'consorcio');
+}
+
+function enterConsorcioInputs() {
+  const initial = document.getElementById('initialDeposit');
+  const extraMonths = document.getElementById('extraMonths');
+  const extraAmount = document.getElementById('extraAmount');
+  preConsorcioInputs = {
+    initial: initial.value,
+    extraMonths: extraMonths.value,
+    extraAmount: extraAmount.value
+  };
+  initial.value = 2400;
+  extraMonths.value = '';
+  extraAmount.value = '';
+  [initial, extraMonths, extraAmount, document.getElementById('fullWithdrawFromMonth')].forEach(el => { el.disabled = true; });
+  document.getElementById('fullWithdrawFromMonth').value = '';
+  document.getElementById('btnFullWithdraw').disabled = true;
+  document.getElementById('initialDepositHelp').textContent = 'Valor fixo exclusivo do Consórcio';
+  document.getElementById('extraContributionGroup').style.opacity = '.55';
+  document.getElementById('fullWithdrawGroup').style.opacity = '.55';
+  syncInitialDepositBRL();
+  syncExtraLabels();
+}
+
+function leaveConsorcioInputs() {
+  const initial = document.getElementById('initialDeposit');
+  const extraMonths = document.getElementById('extraMonths');
+  const extraAmount = document.getElementById('extraAmount');
+  if (preConsorcioInputs) {
+    initial.value = preConsorcioInputs.initial;
+    extraMonths.value = preConsorcioInputs.extraMonths;
+    extraAmount.value = preConsorcioInputs.extraAmount;
+  }
+  [initial, extraMonths, extraAmount, document.getElementById('fullWithdrawFromMonth')].forEach(el => { el.disabled = false; });
+  document.getElementById('btnFullWithdraw').disabled = false;
+  document.getElementById('initialDepositHelp').textContent = 'Mín. $100 · pacotes $100, $600 ou $1.000';
+  document.getElementById('extraContributionGroup').style.opacity = '';
+  document.getElementById('fullWithdrawGroup').style.opacity = '';
+  preConsorcioInputs = null;
+  syncInitialDepositBRL();
+  syncExtraLabels();
+}
+
+function setConsorcioMode(mode) {
+  consorcioMode = mode;
+  const base = ' flex-1 min-w-[160px] rounded-xl border py-2.5 text-sm font-semibold';
+  document.getElementById('btnConsorcioReinvest').className = 'phase-btn ' + (mode === 'reinvest' ? 'on' : 'off') + base;
+  document.getElementById('btnConsorcioWithdraw').className = 'phase-btn ' + (mode === 'withdraw100' ? 'on' : 'off') + base;
+  document.getElementById('consorcioFixedOpts').classList.toggle('hidden', mode !== 'reinvest');
+  document.getElementById('consorcioWithdrawHelp').classList.toggle('hidden', mode !== 'withdraw100');
 }
 
 // GFI-FASE8: setRecoverMode — alterna entre modo 'time' e 'target' na estratégia Recuperar Capital
@@ -773,6 +867,7 @@ async function runSimulation() {
   const faseadoFixedStopMonth       = parseInt(document.getElementById('faseadoFixedStopMonth').value)         || 0;
   const fullWithdrawFromMonth       = parseInt(document.getElementById('fullWithdrawFromMonth').value)        || 0;
   const cotacao                     = parseFloat(document.getElementById('cotacaoDolar').value)               || 0;
+  const consorcioFixedWithdraw      = parseFloat(document.getElementById('consorcioFixedWithdraw').value);
 
   // GFI-FASE8: parâmetros da estratégia Recuperar Capital
   const recoverTimeWithdrawPct  = parseFloat(document.getElementById('recoverTimeWithdrawPct').value);
@@ -781,6 +876,11 @@ async function runSimulation() {
   const recoverTargetWithdrawPct = parseFloat(document.getElementById('recoverTargetWithdrawPct').value);
 
   if (initial < 100) { alert('Aporte inicial mínimo: $100'); return; }
+
+  if (strategy === 'consorcio' && consorcioMode === 'reinvest' &&
+      (isNaN(consorcioFixedWithdraw) || consorcioFixedWithdraw < 0 || consorcioFixedWithdraw > 250)) {
+    alert('Informe um saque bruto mensal do consórcio entre $0 e $250.'); return;
+  }
 
   // GFI-FASE8: validações para Recuperar Capital
   if (strategy === 'recoverCapital') {
@@ -801,16 +901,20 @@ async function runSimulation() {
     }
   }
   resetEngine();
-  buyWith(initial, 0);
+  if (strategy !== 'consorcio') buyWith(initial, 0);
 
   const monthly = [];
   let totalWithdrawn = 0;
   let totalWithdrawnGross = 0;
+  let consorcioRemaining = strategy === 'consorcio' ? 5000 : 0;
 
   for (let m = 1; m <= simMonths; m++) {
     if (m <= extraMonths && extraAmount > 0) buyWith(extraAmount, m);
-    const income = monthlyIncome();
-    amortizeFIFO(income);
+    const packageIncome = monthlyIncome();
+    amortizeFIFO(packageIncome);
+    const consorcioIncome = consorcioRemaining > 0 ? Math.min(250, consorcioRemaining) : 0;
+    consorcioRemaining -= consorcioIncome;
+    const income = packageIncome + consorcioIncome;
 
     let withdrawn = 0, reinvested = 0, grossWithdrawn = 0;
 
@@ -818,7 +922,18 @@ async function runSimulation() {
     const TAX = 0.9; // 10% de taxa sobre saques
 
     // Override: a partir do mês configurado, 100% do rendimento é sacado
-    if (fullWithdrawFromMonth > 0 && m >= fullWithdrawFromMonth) {
+    if (strategy === 'consorcio') {
+      if (consorcioMode === 'withdraw100') {
+        grossWithdrawn = income;
+        withdrawn = income * TAX;
+      } else {
+        const fixedConsorcio = consorcioIncome > 0 ? consorcioFixedWithdraw : 0;
+        grossWithdrawn = fixedConsorcio;
+        withdrawn = fixedConsorcio;
+        const toReinvestConsorcio = income - fixedConsorcio;
+        if (toReinvestConsorcio > 0) reinvested = buyWith(toReinvestConsorcio, m);
+      }
+    } else if (fullWithdrawFromMonth > 0 && m >= fullWithdrawFromMonth) {
       grossWithdrawn = income;
       withdrawn = income * TAX;
     } else if (strategy === 'reinvest') {
@@ -905,8 +1020,13 @@ async function runSimulation() {
     totalWithdrawn += withdrawn;
     totalWithdrawnGross += grossWithdrawn;
     const actives    = activePackages();
-    const activeValue = actives.reduce((s, p) => s + p.value, 0);
-    monthly.push({ m, income, reinvested, withdrawn, grossWithdrawn, totalWithdrawn, totalWithdrawnGross, activeCount: actives.length, activeValue, pendingCash });
+    const consorcioActive = consorcioRemaining > 0;
+    const activeValue = actives.reduce((s, p) => s + p.value, 0) + (consorcioActive ? 2400 : 0);
+    monthly.push({
+      m, income, packageIncome, consorcioIncome, consorcioRemaining,
+      reinvested, withdrawn, grossWithdrawn, totalWithdrawn, totalWithdrawnGross,
+      activeCount: actives.length + (consorcioActive ? 1 : 0), activeValue, pendingCash
+    });
   }
 
   lastMonthlyData = monthly;
@@ -925,10 +1045,20 @@ async function runSimulation() {
 // GFI-FASE2: renderResults — atualiza os 4 cards de resumo e chama renderChart + renderMonthTable.
 function renderResults(monthly, cotacao) {
   const last = monthly[monthly.length - 1];
+  const isConsorcio = strategy === 'consorcio';
+  const consorcioReinvest = isConsorcio && consorcioMode === 'reinvest';
   document.getElementById('cardAssets').textContent         = fmt(last.activeValue);
   document.getElementById('cardMonthly').textContent        = fmt(last.income);
   document.getElementById('cardWithdrawn').textContent      = fmt(last.totalWithdrawn);
   document.getElementById('cardWithdrawnGross').textContent = fmt(last.totalWithdrawnGross);
+  document.getElementById('cardAssetsHint').textContent = isConsorcio ? 'Consórcio ativo + pacotes reaportados' : 'Capital nos pacotes ativos';
+  document.getElementById('cardMonthlyHint').textContent = isConsorcio ? 'US$ 250 do consórcio + 12,5% dos pacotes' : '12,5% dos pacotes ativos';
+  document.getElementById('cardWithdrawnHint').innerHTML = consorcioReinvest
+    ? 'Saque fixo acumulado <span class="text-emerald-400">(sem desconto adicional)</span>'
+    : 'Acumulado líquido <span class="text-orange-400">(taxa 10% descontada)</span>';
+  document.getElementById('cardGrossHint').innerHTML = consorcioReinvest
+    ? 'Valor efetivamente retirado para pagar o consórcio'
+    : 'Soma bruta <span class="text-orange-400">(antes da taxa)</span>';
   const cardAssetsBRL         = document.getElementById('cardAssetsBRL');
   const cardMonthlyBRL        = document.getElementById('cardMonthlyBRL');
   const cardWithdrawnBRL      = document.getElementById('cardWithdrawnBRL');
@@ -988,6 +1118,14 @@ function renderChart(monthly) {
 // GFI-FASE2: renderMonthTable — tabela histórica mensal agrupada por ano com collapse.
 function renderMonthTable(monthly, cotacao) {
   const showBRL = cotacao > 0;
+  const consorcioReinvest = strategy === 'consorcio' && consorcioMode === 'reinvest';
+  document.getElementById('thMonthWithdrawn').innerHTML = consorcioReinvest
+    ? 'Sacado ($) <span class="text-emerald-400 normal-case">sem taxa</span>'
+    : 'Sacado Líq. ($) <span class="text-orange-400 normal-case">-10%</span>';
+  document.getElementById('thMonthWithBRL').innerHTML = consorcioReinvest
+    ? 'Sacado (R$) <span class="text-emerald-400 normal-case">sem taxa</span>'
+    : 'Sacado Líq. (R$) <span class="text-orange-400 normal-case">-10%</span>';
+  document.getElementById('thMonthActiveCount').textContent = strategy === 'consorcio' ? 'Pcts./Contrato Ativos' : 'Pcts. Ativos';
   document.getElementById('thMonthIncBRL').classList.toggle('hidden', !showBRL);
   document.getElementById('thMonthWithBRL').classList.toggle('hidden', !showBRL);
   document.getElementById('thMonthGrossBRL').classList.toggle('hidden', !showBRL);
@@ -1105,6 +1243,7 @@ function exportExcel(type) {
 
   if (type === 'monthly' || type === 'all') {
     const showBRL = cotacao > 0;
+    const withoutTax = strategy === 'consorcio' && consorcioMode === 'reinvest';
     const data = lastMonthlyData.map(r => {
       const row = {};
       row['Mês']                      = r.m;
@@ -1112,8 +1251,8 @@ function exportExcel(type) {
       row['Rendimento ($)']           = fmt(r.income);
       if (showBRL) row['Rend. (R$)'] = fmtBRL(r.income, cotacao);
       row['Reinvestido ($)']          = fmt(r.reinvested);
-      row['Sacado Líq. ($) -10%']    = fmt(r.withdrawn);
-      if (showBRL) row['Sacado Líq. (R$) -10%'] = fmtBRL(r.withdrawn, cotacao);
+      row[withoutTax ? 'Sacado ($) sem taxa' : 'Sacado Líq. ($) -10%'] = fmt(r.withdrawn);
+      if (showBRL) row[withoutTax ? 'Sacado (R$) sem taxa' : 'Sacado Líq. (R$) -10%'] = fmtBRL(r.withdrawn, cotacao);
       row['Sacado Bruto ($)']         = fmt(r.grossWithdrawn);
       if (showBRL) row['Sacado Bruto (R$)'] = fmtBRL(r.grossWithdrawn, cotacao);
       row['Pcts. Ativos']             = r.activeCount;
@@ -1137,7 +1276,7 @@ function getSimulationParametersForExport() {
   // Estratégia principal
   const fullWithdrawBtn = document.getElementById('btnFullWithdraw');
   const isFull100 = fullWithdrawBtn && fullWithdrawBtn.classList.contains('on');
-  const stratMap = { reinvest: '100% Reinvestimento', hybrid: 'Híbrido', fixedW: 'Saque Fixo', faseado: 'Faseado', recoverCapital: 'Recuperar Capital' };
+  const stratMap = { reinvest: '100% Reinvestimento', hybrid: 'Híbrido', fixedW: 'Saque Fixo', faseado: 'Faseado', recoverCapital: 'Recuperar Capital', consorcio: 'Consórcio' };
   const stratLabel = isFull100 ? '100% Saque (todos os meses)' : (stratMap[strategy] || strategy);
 
   // Faseado pós-fase label
@@ -1153,12 +1292,12 @@ function getSimulationParametersForExport() {
 
   // Aportes extras
   const extraM = v('extraMonths');  const extraA = v('extraAmount');
-  const extraMesLabel = extraM !== '' && parseFloat(extraM) > 0 ? extraM + ' meses' : ni;
-  const extraValLabel = extraA !== '' && parseFloat(extraA) > 0 ? '$' + parseFloat(extraA).toLocaleString('pt-BR', {minimumFractionDigits:2}) + '/mês' : ni;
+  const extraMesLabel = strategy === 'consorcio' ? na : (extraM !== '' && parseFloat(extraM) > 0 ? extraM + ' meses' : ni);
+  const extraValLabel = strategy === 'consorcio' ? na : (extraA !== '' && parseFloat(extraA) > 0 ? '$' + parseFloat(extraA).toLocaleString('pt-BR', {minimumFractionDigits:2}) + '/mês' : ni);
 
   // Mês 100% saque
   const fwMonth = v('fullWithdrawFromMonth');
-  const fwLabel = fwMonth !== '' && parseInt(fwMonth) > 0 ? 'A partir do mês ' + fwMonth : na;
+  const fwLabel = strategy === 'consorcio' ? na : (fwMonth !== '' && parseInt(fwMonth) > 0 ? 'A partir do mês ' + fwMonth : na);
 
   // Cotação
   const cot = parseFloat(v('cotacaoDolar'));
@@ -1275,6 +1414,20 @@ function getSimulationParametersForExport() {
     rows.push(['Recuperar Capital – Critério de alvo',         na]);
   }
 
+  if (strategy === 'consorcio') {
+    rows.push(['Consórcio – Aporte inicial', '$2.400,00']);
+    rows.push(['Consórcio – Rendimento mensal', '$250,00']);
+    rows.push(['Consórcio – Prazo', '20 meses']);
+    rows.push(['Consórcio – Teto total', '$5.000,00']);
+    rows.push(['Consórcio – Modalidade', consorcioMode === 'reinvest' ? '100% Reinvestimento' : '100% Saque']);
+    rows.push(['Consórcio – Saque bruto fixo/mês', consorcioMode === 'reinvest'
+      ? '$' + (parseFloat(v('consorcioFixedWithdraw')) || 0).toLocaleString('pt-BR', {minimumFractionDigits:2})
+      : na]);
+    rows.push(['Consórcio – Regra da taxa', consorcioMode === 'reinvest'
+      ? 'Saque fixo sem desconto adicional'
+      : '10% sobre o saque integral']);
+  }
+
   rows.push(['', '']); // separador antes dos dados
   return rows;
 }
@@ -1288,6 +1441,7 @@ function exportExcelDetailed() {
   const wb      = XLSX.utils.book_new();
   const cotacao = lastCotacao;
   const showBRL = cotacao > 0;
+  const withoutTax = strategy === 'consorcio' && consorcioMode === 'reinvest';
 
   // --- Aba: Histórico Mensal (com cabeçalho de parâmetros) ---
   const paramRows = getSimulationParametersForExport();
@@ -1295,8 +1449,8 @@ function exportExcelDetailed() {
   // Linha de cabeçalho das colunas de dados
   const colHeaders = ['Mês', 'Período', 'Rendimento ($)'];
   if (showBRL) colHeaders.push('Rend. (R$)');
-  colHeaders.push('Reinvestido ($)', 'Sacado Líq. ($) -10%');
-  if (showBRL) colHeaders.push('Sacado Líq. (R$) -10%');
+  colHeaders.push('Reinvestido ($)', withoutTax ? 'Sacado ($) sem taxa' : 'Sacado Líq. ($) -10%');
+  if (showBRL) colHeaders.push(withoutTax ? 'Sacado (R$) sem taxa' : 'Sacado Líq. (R$) -10%');
   colHeaders.push('Sacado Bruto ($)');
   if (showBRL) colHeaders.push('Sacado Bruto (R$)');
   colHeaders.push('Pcts. Ativos', 'Capital Ativo ($)', 'Caixa Próx. Mês ($)');
@@ -1361,7 +1515,8 @@ function exportExcelSummary() {
   const cotacao = lastCotacao;
   const wb = XLSX.utils.book_new();
 
-  const colHeaders = ['MES', 'PERIODO', 'Sacado Líq. (R$) -10%', 'Sacado Bruto (R$)'];
+  const withoutTax = strategy === 'consorcio' && consorcioMode === 'reinvest';
+  const colHeaders = ['MES', 'PERIODO', withoutTax ? 'Sacado (R$) sem taxa' : 'Sacado Líq. (R$) -10%', 'Sacado Bruto (R$)'];
   const dataRows = lastMonthlyData.map(r => [
     r.m,
     monthLabel(r.m),
