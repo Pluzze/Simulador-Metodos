@@ -782,12 +782,23 @@ let pendingCash = 0;
 
 function resetEngine() { packages = []; pkgCounter = 0; pendingCash = 0; }
 
-// GFI-FASE2: CRITICO — mkPkg: cria pacote. Teto = value*2.5. NÃO ALTERAR.
-function mkPkg(value, month) {
-  return { id: ++pkgCounter, value, ceiling: value * 2.5, remaining: value * 2.5, amortized: 0, status: 'ativo', month };
+// GFI-FASE2: CRITICO — mkPkg: cria pacote com teto e rendimento próprios.
+function mkPkg(value, month, options = {}) {
+  const ceiling = options.ceiling ?? value * 2.5;
+  return {
+    id: ++pkgCounter,
+    value,
+    ceiling,
+    remaining: ceiling,
+    amortized: 0,
+    status: 'ativo',
+    month,
+    type: options.type || 'pacote',
+    monthlyYield: options.monthlyYield ?? value * 0.125
+  };
 }
 function activePackages() { return packages.filter(p => p.status === 'ativo'); }
-function monthlyIncome()  { return activePackages().reduce((s,p) => s + p.value, 0) * 0.125; }
+function monthlyIncome()  { return activePackages().reduce((s,p) => s + p.monthlyYield, 0); }
 
 // GFI-FASE2: CRITICO — amortizeFIFO: regra central FIFO. NÃO ALTERAR.
 function amortizeFIFO(profit) {
@@ -901,20 +912,26 @@ async function runSimulation() {
     }
   }
   resetEngine();
-  if (strategy !== 'consorcio') buyWith(initial, 0);
+  let consorcioPackage = null;
+  if (strategy === 'consorcio') {
+    consorcioPackage = mkPkg(2400, 0, { type: 'consorcio', ceiling: 5000, monthlyYield: 250 });
+    packages.push(consorcioPackage);
+  } else {
+    buyWith(initial, 0);
+  }
 
   const monthly = [];
   let totalWithdrawn = 0;
   let totalWithdrawnGross = 0;
-  let consorcioRemaining = strategy === 'consorcio' ? 5000 : 0;
 
   for (let m = 1; m <= simMonths; m++) {
     if (m <= extraMonths && extraAmount > 0) buyWith(extraAmount, m);
-    const packageIncome = monthlyIncome();
-    amortizeFIFO(packageIncome);
-    const consorcioIncome = consorcioRemaining > 0 ? Math.min(250, consorcioRemaining) : 0;
-    consorcioRemaining -= consorcioIncome;
-    const income = packageIncome + consorcioIncome;
+    const consorcioIncome = consorcioPackage && consorcioPackage.status === 'ativo' ? 250 : 0;
+    const income = monthlyIncome();
+    const packageIncome = income - consorcioIncome;
+    // Todo o rendimento consome a fila desde o contrato mais antigo.
+    // No Consórcio, o teto de $5.000 é sempre o primeiro saldo amortizado.
+    amortizeFIFO(income);
 
     let withdrawn = 0, reinvested = 0, grossWithdrawn = 0;
 
@@ -1020,12 +1037,12 @@ async function runSimulation() {
     totalWithdrawn += withdrawn;
     totalWithdrawnGross += grossWithdrawn;
     const actives    = activePackages();
-    const consorcioActive = consorcioRemaining > 0;
-    const activeValue = actives.reduce((s, p) => s + p.value, 0) + (consorcioActive ? 2400 : 0);
+    const consorcioRemaining = consorcioPackage ? consorcioPackage.remaining : 0;
+    const activeValue = actives.reduce((s, p) => s + p.value, 0);
     monthly.push({
       m, income, packageIncome, consorcioIncome, consorcioRemaining,
       reinvested, withdrawn, grossWithdrawn, totalWithdrawn, totalWithdrawnGross,
-      activeCount: actives.length + (consorcioActive ? 1 : 0), activeValue, pendingCash
+      activeCount: actives.length, activeValue, pendingCash
     });
   }
 
@@ -1225,7 +1242,7 @@ function exportExcel(type) {
   if (type === 'pacotes' || type === 'all') {
     const data = packages.map(p => {
       const row = {
-        'ID': '#' + p.id, 'Mês de Entrada': p.month,
+        'ID': '#' + p.id, 'Tipo': p.type === 'consorcio' ? 'Consórcio' : 'Pacote', 'Mês de Entrada': p.month,
         'Valor ($)': p.value, 'Teto ($)': p.ceiling,
         'Saldo Restante ($)': parseFloat(p.remaining.toFixed(2)),
         'Amortizado ($)': parseFloat(p.amortized.toFixed(2)),
@@ -1484,7 +1501,7 @@ function exportExcelDetailed() {
   if (typeof packages !== 'undefined' && packages.length > 0) {
     const pkgData = packages.map(p => {
       const row = {
-        'ID': '#' + p.id, 'Mês de Entrada': p.month,
+        'ID': '#' + p.id, 'Tipo': p.type === 'consorcio' ? 'Consórcio' : 'Pacote', 'Mês de Entrada': p.month,
         'Valor ($)': p.value, 'Teto ($)': p.ceiling,
         'Saldo Restante ($)': parseFloat(p.remaining.toFixed(2)),
         'Amortizado ($)': parseFloat(p.amortized.toFixed(2)),
