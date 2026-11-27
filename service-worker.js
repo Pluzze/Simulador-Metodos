@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gfi-calc-v9'; // Consórcio integrado à amortização FIFO
+const CACHE_NAME = 'gfi-calc-v10'; // Consórcio integrado à amortização FIFO
 
 // Base path relativo ao local do service worker (funciona em localhost E GitHub Pages)
 const BASE = self.registration.scope;

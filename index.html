@@ -167,7 +167,7 @@
         <span class="hidden sm:inline">Instalar App</span>
         <span class="sm:hidden">Instalar</span>
       </button>
-      <span class="text-xs text-slate-600 hidden sm:block">Amortização FIFO · 12.5% a.m.</span>
+      <span class="text-xs text-slate-600 hidden sm:block">Amortização FIFO · 10% a.m.</span>
     </div>
   </div>
 </header>
@@ -191,7 +191,7 @@
 
       <div class="space-y-1.5">
         <label class="text-xs font-medium text-slate-400 uppercase tracking-wider">Meses de Simulação</label>
-        <input id="simMonths" type="number" value="24" min="1" max="120" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm" />
+        <input id="simMonths" type="number" value="24" min="1" max="180" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-sm" />
         <p class="text-xs text-slate-500">Período total da simulação</p>
       </div>
 
@@ -327,7 +327,7 @@
             Fase de Reinvestimento Total
           </p>
           <div class="flex items-center gap-3">
-            <input id="reinvestPhaseMonths" type="number" value="12" min="1" max="120" class="w-28 bg-slate-700 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-sm" />
+            <input id="reinvestPhaseMonths" type="number" value="12" min="1" max="180" class="w-28 bg-slate-700 border border-slate-600 rounded-xl px-4 py-2.5 text-white text-sm" />
             <span class="text-xs text-slate-400">meses de 100% reinvestimento</span>
           </div>
         </div>
@@ -457,7 +457,7 @@
         <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Ganho Mensal Atual</p>
         <p id="cardMonthly" class="text-3xl font-black text-emerald-400 mt-1">—</p>
         <p id="cardMonthlyBRL" class="text-sm font-semibold text-yellow-300 mt-1 hidden">—</p>
-        <p id="cardMonthlyHint" class="text-xs text-slate-500 mt-2">12,5% dos pacotes ativos</p>
+        <p id="cardMonthlyHint" class="text-xs text-slate-500 mt-2">10% dos pacotes ativos (6% lucro + 4% retorno do capital)</p>
       </div>
       <div class="glass rounded-2xl p-6">
         <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Sacado Líquido</p>
@@ -515,7 +515,7 @@
 </main>
 
 <footer class="border-t border-slate-800/50 py-6 text-center text-xs text-slate-700 mt-4">
-  GFI Calculadora · PWA · Amortização FIFO · 12,5% a.m.
+  GFI Calculadora · PWA · Amortização FIFO · 10% a.m.
 </footer>
 
 <!-- GFI-FASE3: PAINEL ADMIN REAL -->
@@ -573,6 +573,8 @@ let preConsorcioInputs = null;
 let chartInst   = null;
 let lastMonthlyData = [];
 let lastCotacao     = 0;
+let lastSimulationBaseDate = null;
+let lastSimulationSnapshot = null;
 
 // GFI-FASE2: AUTH STATE — variáveis de sessão (atualizadas pelo bloco Firebase no fim do arquivo)
 let currentGFIUser = null;
@@ -613,10 +615,11 @@ function fmtBRL(v, cotacao) {
 }
 
 // Converte número de mês da simulação em rótulo "Mmm/AA" a partir do mês atual
-function monthLabel(simMonth) {
+function monthLabel(simMonth, baseDate = lastSimulationBaseDate || new Date()) {
   const mNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() + (simMonth - 1), 1);
+  const now = baseDate;
+  // Month 0 is the initial deposit; month 1 is the next calendar month.
+  const d = new Date(now.getFullYear(), now.getMonth() + simMonth, 1);
   return mNames[d.getMonth()] + '/' + String(d.getFullYear()).slice(-2);
 }
 function syncFixedWithdrawBRL() {
@@ -779,6 +782,12 @@ function toggleSection(id) {
 let packages    = [];
 let pkgCounter  = 0;
 let pendingCash = 0;
+// Taxa mensal bruta dos pacotes e composicao do rendimento (antes da taxa de saque).
+const PACKAGE_MONTHLY_RATE = 0.10;
+const PACKAGE_PROFIT_SHARE = 0.60;
+const PACKAGE_CAPITAL_RETURN_SHARE = 0.40;
+const MAX_SIMULATION_PACKAGES = 250000;
+class SimulationValidationError extends Error {}
 
 function resetEngine() { packages = []; pkgCounter = 0; pendingCash = 0; }
 
@@ -794,11 +803,17 @@ function mkPkg(value, month, options = {}) {
     status: 'ativo',
     month,
     type: options.type || 'pacote',
-    monthlyYield: options.monthlyYield ?? value * 0.125
+    monthlyYield: options.monthlyYield ?? value * PACKAGE_MONTHLY_RATE
   };
 }
 function activePackages() { return packages.filter(p => p.status === 'ativo'); }
-function monthlyIncome()  { return activePackages().reduce((s,p) => s + p.monthlyYield, 0); }
+function monthlyIncome() {
+  const active = activePackages();
+  const nominal = active.reduce((s,p) => s + p.monthlyYield, 0);
+  const remaining = active.reduce((s,p) => s + p.remaining, 0);
+  // Limita o pagamento ao teto ainda disponivel na fila FIFO.
+  return Math.min(nominal, remaining);
+}
 
 // GFI-FASE2: CRITICO — amortizeFIFO: regra central FIFO. NÃO ALTERAR.
 function amortizeFIFO(profit) {
@@ -821,9 +836,17 @@ function amortizeFIFO(profit) {
 function buyWith(amount, month) {
   const tiers = [1000, 600, 100];
   let pool = amount + pendingCash;
+  if (!Number.isFinite(pool) || pool < 0) {
+    throw new SimulationValidationError('Valor inválido para compra de pacotes.');
+  }
+  const limitMessage = 'Simulação muito grande: limite técnico de 250.000 pacotes. Reduza os aportes ou o período.';
+  if (pool >= (MAX_SIMULATION_PACKAGES - packages.length + 1) * 1000) {
+    throw new SimulationValidationError(limitMessage);
+  }
   pendingCash = 0;
   let actualBought = 0;
   while (pool >= 100) {
+    if (packages.length >= MAX_SIMULATION_PACKAGES) throw new SimulationValidationError(limitMessage);
     let bought = false;
     for (const v of tiers) {
       if (pool >= v) { packages.push(mkPkg(v, month)); pool -= v; actualBought += v; bought = true; break; }
@@ -841,7 +864,7 @@ async function fetchCotacao() {
     if (resp.ok) {
       const data = await resp.json();
       const rate = parseFloat(data.USDBRL.bid);
-      if (rate > 0) {
+      if (Number.isFinite(rate) && rate > 0) {
         document.getElementById('cotacaoDolar').value = rate.toFixed(2);
         syncAllFixedBRL();
       }
@@ -858,196 +881,291 @@ async function runSimulation() {
     gfiShowNotification('Você precisa estar logado para usar a calculadora.');
     return;
   }
-  // Atualiza cotação antes de simular
-  await fetchCotacao();
-
-  const initial             = parseFloat(document.getElementById('initialDeposit').value)   || 0;
-  const simMonths           = parseInt(document.getElementById('simMonths').value)           || 12;
-  const extraMonths         = parseInt(document.getElementById('extraMonths').value)         || 0;
-  const extraAmount         = parseFloat(document.getElementById('extraAmount').value)       || 0;
-  const withdrawPct         = parseInt(document.getElementById('withdrawalPct').value)       || 0;
-  const reinvestPhaseMonths = parseInt(document.getElementById('reinvestPhaseMonths').value) || 12;
-  const faseadoWithdrawPct  = parseInt(document.getElementById('faseadoWithdrawPct').value)  || 50;
-  const fixedWithdrawAmt            = parseFloat(document.getElementById('fixedWithdrawAmt').value)           || 0;
-  const fixedWithdrawGrowthPct      = parseFloat(document.getElementById('fixedWithdrawGrowthPct').value)     || 0;
-  const fixedWithdrawGrowthInterval = parseInt(document.getElementById('fixedWithdrawGrowthInterval').value)  || 0;
-  const faseadoFixedAmt             = parseFloat(document.getElementById('faseadoFixedAmt').value)            || 0;
-  const faseadoFixedGrowthPct       = parseFloat(document.getElementById('faseadoFixedGrowthPct').value)      || 0;
-  const faseadoFixedGrowthInterval  = parseInt(document.getElementById('faseadoFixedGrowthInterval').value)   || 0;
-  const fixedWithdrawStopMonth      = parseInt(document.getElementById('fixedWithdrawStopMonth').value)        || 0;
-  const faseadoFixedStopMonth       = parseInt(document.getElementById('faseadoFixedStopMonth').value)         || 0;
-  const fullWithdrawFromMonth       = parseInt(document.getElementById('fullWithdrawFromMonth').value)        || 0;
-  const cotacao                     = parseFloat(document.getElementById('cotacaoDolar').value)               || 0;
-  const consorcioFixedWithdraw      = parseFloat(document.getElementById('consorcioFixedWithdraw').value);
-
-  // GFI-FASE8: parâmetros da estratégia Recuperar Capital
-  const recoverTimeWithdrawPct  = parseFloat(document.getElementById('recoverTimeWithdrawPct').value);
-  const recoverTimeMonthsVal    = parseInt(document.getElementById('recoverTimeMonths').value);
-  const recoverTargetAmount     = parseFloat(document.getElementById('recoverTargetAmount').value);
-  const recoverTargetWithdrawPct = parseFloat(document.getElementById('recoverTargetWithdrawPct').value);
-
-  if (initial < 100) { alert('Aporte inicial mínimo: $100'); return; }
-
-  if (strategy === 'consorcio' && consorcioMode === 'reinvest' &&
-      (isNaN(consorcioFixedWithdraw) || consorcioFixedWithdraw < 0 || consorcioFixedWithdraw > 250)) {
-    alert('Informe um saque bruto mensal do consórcio entre $0 e $250.'); return;
+  const simulationBaseDate = new Date();
+  // Validate explicit inputs; empty optional fields retain their disabled value.
+  function numberField(id, label, options = {}) {
+    const { min = 0, max = Infinity, integer = false, empty } = options;
+    const el = document.getElementById(id);
+    const raw = String(el.value).trim();
+    if (el.validity && el.validity.badInput) throw new SimulationValidationError(label + ': informe um número válido.');
+    if (raw === '') {
+      if (empty !== undefined) return empty;
+      throw new SimulationValidationError(label + ': preencha o campo.');
+    }
+    const value = Number(raw);
+    if (!Number.isFinite(value) || (integer && !Number.isSafeInteger(value)) || value < min || value > max) {
+      const kind = integer ? 'um número inteiro' : 'um número válido';
+      const bounds = Number.isFinite(max) ? ' entre ' + min + ' e ' + max : ' maior ou igual a ' + min;
+      throw new SimulationValidationError(label + ': informe ' + kind + bounds + '.');
+    }
+    return value;
+  }
+  const monthField = (id, label, options = {}) => numberField(id, label, { integer: true, ...options });
+  const percentField = (id, label, integer = false) => numberField(id, label, { max: 100, integer });
+  const optionalMoney = (id, label) => numberField(id, label, { empty: 0 });
+  const optionalMonth = (id, label) => monthField(id, label, { empty: 0 });
+  function readFixed(prefix, label) {
+    const amount = numberField(prefix + 'Amt', label + ' - valor líquido');
+    const growth = optionalMoney(prefix + 'GrowthPct', label + ' - reajuste (%)');
+    const interval = optionalMonth(prefix + 'GrowthInterval', label + ' - intervalo de reajuste');
+    const stop = optionalMonth(prefix + 'StopMonth', label + ' - mês para parar');
+    if (growth > 0 && interval === 0) {
+      throw new SimulationValidationError(label + ': informe um intervalo de pelo menos 1 mês para o reajuste.');
+    }
+    return { amount, growth, interval, stop };
   }
 
-  // GFI-FASE8: validações para Recuperar Capital
-  if (strategy === 'recoverCapital') {
-    if (recoverMode === 'time') {
-      if (isNaN(recoverTimeWithdrawPct) || recoverTimeWithdrawPct < 0 || recoverTimeWithdrawPct > 100) {
-        alert('Informe um percentual de saque entre 0 e 100.'); return;
-      }
-      if (isNaN(recoverTimeMonthsVal) || recoverTimeMonthsVal < 1) {
-        alert('Informe a quantidade de meses da fase de recuperação.'); return;
+  let initial = 0, simMonths, extraMonths = 0, extraAmount = 0, cotacao;
+  let withdrawPct = 0, reinvestPhaseMonths = 0, faseadoWithdrawPct = 0;
+  let fixedWithdrawAmt = 0, fixedWithdrawGrowthPct = 0, fixedWithdrawGrowthInterval = 0, fixedWithdrawStopMonth = 0;
+  let faseadoFixedAmt = 0, faseadoFixedGrowthPct = 0, faseadoFixedGrowthInterval = 0, faseadoFixedStopMonth = 0;
+  let fullWithdrawFromMonth = 0, consorcioFixedWithdraw = 0;
+  let recoverTimeWithdrawPct = 0, recoverTimeMonthsVal = 0, recoverTargetAmount = 0, recoverTargetWithdrawPct = 0;
+
+  try {
+    // Keep the existing automatic exchange-rate refresh, but reject invalid manual values.
+    optionalMoney('cotacaoDolar', 'Cotação do dólar');
+    await fetchCotacao();
+    cotacao = optionalMoney('cotacaoDolar', 'Cotação do dólar');
+    simMonths = monthField('simMonths', 'Meses de simulação', { min: 1, max: 180 });
+
+    if (strategy === 'consorcio') {
+      initial = 2400;
+      if (consorcioMode === 'reinvest') {
+        consorcioFixedWithdraw = numberField('consorcioFixedWithdraw', 'Saque fixo do consórcio', { max: 250 });
+      } else if (consorcioMode !== 'withdraw100') {
+        throw new SimulationValidationError('Selecione uma modalidade do consórcio.');
       }
     } else {
-      if (isNaN(recoverTargetAmount) || recoverTargetAmount <= 0) {
-        alert('Informe um valor-alvo maior que zero.'); return;
+      initial = numberField('initialDeposit', 'Aporte inicial', { min: 100 });
+      extraMonths = optionalMonth('extraMonths', 'Meses de aporte adicional');
+      extraAmount = optionalMoney('extraAmount', 'Valor do aporte adicional');
+      if ((extraMonths > 0) !== (extraAmount > 0)) {
+        throw new SimulationValidationError('Para adicionar aportes extras, informe a quantidade de meses e o valor, ambos maiores que zero.');
       }
-      if (isNaN(recoverTargetWithdrawPct) || recoverTargetWithdrawPct < 0 || recoverTargetWithdrawPct > 100) {
-        alert('Informe um percentual de saque entre 0 e 100.'); return;
+      fullWithdrawFromMonth = optionalMonth('fullWithdrawFromMonth', 'Mês para iniciar 100% saque');
+
+      // If full withdrawal starts in month 1, no other strategy parameters are used.
+      if (fullWithdrawFromMonth !== 1) {
+        if (strategy === 'hybrid') {
+          withdrawPct = percentField('withdrawalPct', 'Percentual de saque', true);
+        } else if (strategy === 'fixedW') {
+          ({ amount: fixedWithdrawAmt, growth: fixedWithdrawGrowthPct, interval: fixedWithdrawGrowthInterval, stop: fixedWithdrawStopMonth } = readFixed('fixedWithdraw', 'Saque fixo'));
+        } else if (strategy === 'faseado') {
+          reinvestPhaseMonths = monthField('reinvestPhaseMonths', 'Meses de reinvestimento da primeira fase', { min: 1, max: 180 });
+          if (faseadoPost === 'hybrid') {
+            faseadoWithdrawPct = percentField('faseadoWithdrawPct', 'Percentual de saque da segunda fase', true);
+          } else if (faseadoPost === 'fixedWithdraw') {
+            ({ amount: faseadoFixedAmt, growth: faseadoFixedGrowthPct, interval: faseadoFixedGrowthInterval, stop: faseadoFixedStopMonth } = readFixed('faseadoFixed', 'Saque fixo da segunda fase'));
+          } else if (faseadoPost !== 'withdraw100') {
+            throw new SimulationValidationError('Selecione uma modalidade para a segunda fase.');
+          }
+        } else if (strategy === 'recoverCapital') {
+          if (recoverMode === 'time') {
+            recoverTimeWithdrawPct = percentField('recoverTimeWithdrawPct', 'Percentual de saque na recuperação');
+            recoverTimeMonthsVal = monthField('recoverTimeMonths', 'Meses da fase de recuperação', { min: 1 });
+          } else if (recoverMode === 'target') {
+            recoverTargetAmount = numberField('recoverTargetAmount', 'Valor-alvo da recuperação', { min: 1 });
+            recoverTargetWithdrawPct = percentField('recoverTargetWithdrawPct', 'Percentual de saque na recuperação');
+          } else {
+            throw new SimulationValidationError('Selecione uma modalidade de recuperação de capital.');
+          }
+        } else if (strategy !== 'reinvest') {
+          throw new SimulationValidationError('Selecione uma estratégia válida.');
+        }
       }
     }
-  }
-  resetEngine();
-  let consorcioPackage = null;
-  if (strategy === 'consorcio') {
-    consorcioPackage = mkPkg(2400, 0, { type: 'consorcio', ceiling: 5000, monthlyYield: 250 });
-    packages.push(consorcioPackage);
-  } else {
-    buyWith(initial, 0);
+  } catch (err) {
+    if (err instanceof SimulationValidationError) { alert(err.message); return; }
+    throw err;
   }
 
+  const previousEngine = { packages, pkgCounter, pendingCash };
   const monthly = [];
-  let totalWithdrawn = 0;
-  let totalWithdrawnGross = 0;
-
-  for (let m = 1; m <= simMonths; m++) {
-    if (m <= extraMonths && extraAmount > 0) buyWith(extraAmount, m);
-    const consorcioIncome = consorcioPackage && consorcioPackage.status === 'ativo' ? 250 : 0;
-    const income = monthlyIncome();
-    const packageIncome = income - consorcioIncome;
-    // Todo o rendimento consome a fila desde o contrato mais antigo.
-    // No Consórcio, o teto de $5.000 é sempre o primeiro saldo amortizado.
-    amortizeFIFO(income);
-
-    let withdrawn = 0, reinvested = 0, grossWithdrawn = 0;
-
-    // GFI-FASE2: CONSTANTES-CRITICAS — TAX=0.9(10% saque). 0.125=12.5% rend. 2.5=teto. NÃO ALTERAR.
-    const TAX = 0.9; // 10% de taxa sobre saques
-
-    // Override: a partir do mês configurado, 100% do rendimento é sacado
+  try {
+    resetEngine();
+    let consorcioPackage = null;
     if (strategy === 'consorcio') {
-      if (consorcioMode === 'withdraw100') {
-        grossWithdrawn = income;
-        withdrawn = income * TAX;
-      } else {
-        const fixedConsorcio = consorcioIncome > 0 ? consorcioFixedWithdraw : 0;
-        grossWithdrawn = fixedConsorcio;
-        withdrawn = fixedConsorcio;
-        const toReinvestConsorcio = income - fixedConsorcio;
-        if (toReinvestConsorcio > 0) reinvested = buyWith(toReinvestConsorcio, m);
-      }
-    } else if (fullWithdrawFromMonth > 0 && m >= fullWithdrawFromMonth) {
-      grossWithdrawn = income;
-      withdrawn = income * TAX;
-    } else if (strategy === 'reinvest') {
-      reinvested = buyWith(income, m);
-    } else if (strategy === 'hybrid') {
-      const grossW = income * (withdrawPct / 100);
-      grossWithdrawn = grossW;
-      withdrawn = grossW * TAX;
-      const toReinvestH = income - grossW;
-      if (toReinvestH > 0) reinvested = buyWith(toReinvestH, m);
-    } else if (strategy === 'fixedW') {
-      if (fixedWithdrawStopMonth > 0 && m >= fixedWithdrawStopMonth) {
-        reinvested = buyWith(income, m);
-      } else {
-        let effectiveFixed = fixedWithdrawAmt;
-        if (fixedWithdrawGrowthInterval > 0 && fixedWithdrawGrowthPct > 0) {
-          const periods = Math.floor((m - 1) / fixedWithdrawGrowthInterval);
-          effectiveFixed = fixedWithdrawAmt * Math.pow(1 + fixedWithdrawGrowthPct / 100, periods);
+      consorcioPackage = mkPkg(2400, 0, { type: 'consorcio', ceiling: 5000, monthlyYield: 250 });
+      packages.push(consorcioPackage);
+    } else {
+      buyWith(initial, 0);
+    }
+
+    let totalWithdrawn = 0;
+    let totalWithdrawnGross = 0;
+
+    for (let m = 1; m <= simMonths; m++) {
+      const income = monthlyIncome();
+      const consorcioIncome = Math.min(income, consorcioPackage && consorcioPackage.status === 'ativo' ? consorcioPackage.monthlyYield : 0);
+      const packageIncome = income - consorcioIncome;
+      // Composicao informativa do rendimento bruto efetivamente pago aos pacotes.
+      // O consorcio mantem sua regra propria; o valor total continua amortizando por FIFO.
+      const packageProfit = packageIncome * PACKAGE_PROFIT_SHARE;
+      const packageCapitalReturn = packageIncome - packageProfit;
+      // Todo o rendimento consome a fila desde o contrato mais antigo.
+      // No Consórcio, o teto de $5.000 é sempre o primeiro saldo amortizado.
+      amortizeFIFO(income);
+
+      // Extra deposits are purchased in month m, and earn only from month m+1.
+      if (m <= extraMonths && extraAmount > 0) buyWith(extraAmount, m);
+
+      let withdrawn = 0, reinvested = 0, grossWithdrawn = 0;
+
+      // GFI-FASE2: CONSTANTES-CRITICAS — TAX=0.9(10% saque). PACKAGE_MONTHLY_RATE=10% rend. 2.5=teto. NÃO ALTERAR.
+      const TAX = 0.9; // 10% de taxa sobre saques
+
+      // Override: a partir do mês configurado, 100% do rendimento é sacado
+      if (strategy === 'consorcio') {
+        if (consorcioMode === 'withdraw100') {
+          grossWithdrawn = income;
+          withdrawn = income * TAX;
+        } else {
+          const fixedConsorcio = Math.min(consorcioIncome, consorcioFixedWithdraw);
+          grossWithdrawn = fixedConsorcio;
+          withdrawn = fixedConsorcio;
+          const toReinvestConsorcio = income - fixedConsorcio;
+          if (toReinvestConsorcio > 0) reinvested = buyWith(toReinvestConsorcio, m);
         }
-        const grossW = Math.min(income, effectiveFixed / TAX);
-        grossWithdrawn = grossW;
-        withdrawn = grossW * TAX;
-        const toReinvestFW = income - grossW;
-        if (toReinvestFW > 0) reinvested = buyWith(toReinvestFW, m);
-      }
-    } else if (strategy === 'faseado') {
-      if (m <= reinvestPhaseMonths) {
-        reinvested = buyWith(income, m);
-      } else if (faseadoPost === 'withdraw100') {
+      } else if (fullWithdrawFromMonth > 0 && m >= fullWithdrawFromMonth) {
         grossWithdrawn = income;
         withdrawn = income * TAX;
-      } else if (faseadoPost === 'hybrid') {
-        const grossW = income * (faseadoWithdrawPct / 100);
+      } else if (strategy === 'reinvest') {
+        reinvested = buyWith(income, m);
+      } else if (strategy === 'hybrid') {
+        const grossW = income * (withdrawPct / 100);
         grossWithdrawn = grossW;
         withdrawn = grossW * TAX;
-        const toReinvestF = income - grossW;
-        if (toReinvestF > 0) reinvested = buyWith(toReinvestF, m);
-      } else if (faseadoPost === 'fixedWithdraw') {
-        if (faseadoFixedStopMonth > 0 && m >= faseadoFixedStopMonth) {
+        const toReinvestH = income - grossW;
+        if (toReinvestH > 0) reinvested = buyWith(toReinvestH, m);
+      } else if (strategy === 'fixedW') {
+        if (fixedWithdrawStopMonth > 0 && m >= fixedWithdrawStopMonth) {
           reinvested = buyWith(income, m);
         } else {
-          let effectiveFixed = faseadoFixedAmt;
-          if (faseadoFixedGrowthInterval > 0 && faseadoFixedGrowthPct > 0) {
-            const postM = m - reinvestPhaseMonths;
-            const periods = Math.floor((postM - 1) / faseadoFixedGrowthInterval);
-            effectiveFixed = faseadoFixedAmt * Math.pow(1 + faseadoFixedGrowthPct / 100, periods);
+          let effectiveFixed = fixedWithdrawAmt;
+          if (fixedWithdrawAmt > 0 && fixedWithdrawGrowthInterval > 0 && fixedWithdrawGrowthPct > 0) {
+            const periods = Math.floor((m - 1) / fixedWithdrawGrowthInterval);
+            effectiveFixed = fixedWithdrawAmt * Math.pow(1 + fixedWithdrawGrowthPct / 100, periods);
           }
           const grossW = Math.min(income, effectiveFixed / TAX);
           grossWithdrawn = grossW;
           withdrawn = grossW * TAX;
-          const toReinvestFF = income - grossW;
-          if (toReinvestFF > 0) reinvested = buyWith(toReinvestFF, m);
+          const toReinvestFW = income - grossW;
+          if (toReinvestFW > 0) reinvested = buyWith(toReinvestFW, m);
         }
-      }
-    } else if (strategy === 'recoverCapital') {
-      // GFI-FASE8: Recuperar Capital — modo Por tempo
-      if (recoverMode === 'time') {
-        if (m <= recoverTimeMonthsVal) {
-          const grossW = income * (recoverTimeWithdrawPct / 100);
+      } else if (strategy === 'faseado') {
+        if (m <= reinvestPhaseMonths) {
+          reinvested = buyWith(income, m);
+        } else if (faseadoPost === 'withdraw100') {
+          grossWithdrawn = income;
+          withdrawn = income * TAX;
+        } else if (faseadoPost === 'hybrid') {
+          const grossW = income * (faseadoWithdrawPct / 100);
           grossWithdrawn = grossW;
           withdrawn = grossW * TAX;
-          const toReinvest = income - grossW;
-          if (toReinvest > 0) reinvested = buyWith(toReinvest, m);
-        } else {
-          reinvested = buyWith(income, m);
+          const toReinvestF = income - grossW;
+          if (toReinvestF > 0) reinvested = buyWith(toReinvestF, m);
+        } else if (faseadoPost === 'fixedWithdraw') {
+          if (faseadoFixedStopMonth > 0 && m >= faseadoFixedStopMonth) {
+            reinvested = buyWith(income, m);
+          } else {
+            let effectiveFixed = faseadoFixedAmt;
+            if (faseadoFixedAmt > 0 && faseadoFixedGrowthInterval > 0 && faseadoFixedGrowthPct > 0) {
+              const postM = m - reinvestPhaseMonths;
+              const periods = Math.floor((postM - 1) / faseadoFixedGrowthInterval);
+              effectiveFixed = faseadoFixedAmt * Math.pow(1 + faseadoFixedGrowthPct / 100, periods);
+            }
+            const grossW = Math.min(income, effectiveFixed / TAX);
+            grossWithdrawn = grossW;
+            withdrawn = grossW * TAX;
+            const toReinvestFF = income - grossW;
+            if (toReinvestFF > 0) reinvested = buyWith(toReinvestFF, m);
+          }
         }
-      } else {
-        // GFI-FASE8: Recuperar Capital — modo Por valor-alvo
-        // Decisão: usa totalWithdrawn ANTES de somar o mês corrente para decidir se ainda saca.
-        // Se o alvo já foi atingido em mês anterior, passa a reinvestir 100%.
-        // Se ultrapassar levemente neste mês, a mudança ocorre no próximo mês.
-        if (totalWithdrawn < recoverTargetAmount) {
-          const grossW = income * (recoverTargetWithdrawPct / 100);
-          grossWithdrawn = grossW;
-          withdrawn = grossW * TAX;
-          const toReinvest = income - grossW;
-          if (toReinvest > 0) reinvested = buyWith(toReinvest, m);
+      } else if (strategy === 'recoverCapital') {
+        // GFI-FASE8: Recuperar Capital — modo Por tempo
+        if (recoverMode === 'time') {
+          if (m <= recoverTimeMonthsVal) {
+            const grossW = income * (recoverTimeWithdrawPct / 100);
+            grossWithdrawn = grossW;
+            withdrawn = grossW * TAX;
+            const toReinvest = income - grossW;
+            if (toReinvest > 0) reinvested = buyWith(toReinvest, m);
+          } else {
+            reinvested = buyWith(income, m);
+          }
         } else {
-          reinvested = buyWith(income, m);
+          // GFI-FASE8: Recuperar Capital — modo Por valor-alvo
+          // Decisão: usa totalWithdrawn ANTES de somar o mês corrente para decidir se ainda saca.
+          // Se o alvo já foi atingido em mês anterior, passa a reinvestir 100%.
+          // Se ultrapassar levemente neste mês, a mudança ocorre no próximo mês.
+          if (totalWithdrawn < recoverTargetAmount) {
+            const grossW = income * (recoverTargetWithdrawPct / 100);
+            grossWithdrawn = grossW;
+            withdrawn = grossW * TAX;
+            const toReinvest = income - grossW;
+            if (toReinvest > 0) reinvested = buyWith(toReinvest, m);
+          } else {
+            reinvested = buyWith(income, m);
+          }
         }
       }
+
+      totalWithdrawn += withdrawn;
+      totalWithdrawnGross += grossWithdrawn;
+      const actives    = activePackages();
+      const consorcioRemaining = consorcioPackage ? consorcioPackage.remaining : 0;
+      const activeValue = actives.reduce((s, p) => s + p.value, 0);
+      monthly.push({
+        m, income, packageIncome, packageProfit, packageCapitalReturn, consorcioIncome, consorcioRemaining,
+        reinvested, withdrawn, grossWithdrawn, totalWithdrawn, totalWithdrawnGross,
+        activeCount: actives.length, activeValue, pendingCash
+      });
     }
 
-    totalWithdrawn += withdrawn;
-    totalWithdrawnGross += grossWithdrawn;
-    const actives    = activePackages();
-    const consorcioRemaining = consorcioPackage ? consorcioPackage.remaining : 0;
-    const activeValue = actives.reduce((s, p) => s + p.value, 0);
-    monthly.push({
-      m, income, packageIncome, consorcioIncome, consorcioRemaining,
-      reinvested, withdrawn, grossWithdrawn, totalWithdrawn, totalWithdrawnGross,
-      activeCount: actives.length, activeValue, pendingCash
-    });
+    // Reject non-finite derived amounts before replacing the previous valid result.
+    let maxAmount = Math.max(initial, extraAmount, monthly.reduce((sum, r) => sum + r.income, 0));
+    for (const r of monthly) {
+      maxAmount = Math.max(maxAmount, r.income, r.reinvested, r.withdrawn, r.grossWithdrawn, r.totalWithdrawn, r.totalWithdrawnGross, r.activeValue, r.pendingCash);
+    }
+    for (const p of packages) maxAmount = Math.max(maxAmount, p.ceiling, p.remaining);
+    if (!Number.isFinite(maxAmount) || !Number.isFinite(maxAmount * cotacao)) {
+      throw new SimulationValidationError('Valores muito grandes para calcular com segurança. Confira os aportes, reajustes e a cotação.');
+    }
+  } catch (err) {
+    ({ packages, pkgCounter, pendingCash } = previousEngine);
+    if (err instanceof SimulationValidationError) { alert(err.message); return; }
+    throw err;
   }
 
   lastMonthlyData = monthly;
   lastCotacao     = cotacao;
+  lastSimulationBaseDate = simulationBaseDate;
+  // P0.4: capture the actual validated inputs and results, never the later UI state.
+  // Each new simulation resets the engine to a new package array; freeze the finished
+  // array and its objects in place to avoid duplicating up to 250,000 packages.
+  monthly.forEach(Object.freeze);
+  packages.forEach(Object.freeze);
+  lastSimulationSnapshot = Object.freeze({
+    baseDateMs: simulationBaseDate.getTime(),
+    user: Object.freeze({
+      uid: currentGFIUser ? currentGFIUser.uid : null,
+      name: currentGFIUser ? (currentGFIUser.displayName || currentGFIUser.email || '') : '',
+      email: currentGFIUser ? (currentGFIUser.email || '') : ''
+    }),
+    strategy, faseadoPost, recoverMode, consorcioMode, cotacao,
+    packageRates: Object.freeze({ monthly: PACKAGE_MONTHLY_RATE, profitShare: PACKAGE_PROFIT_SHARE, capitalReturnShare: PACKAGE_CAPITAL_RETURN_SHARE }),
+    parameters: Object.freeze({
+      initialDeposit: initial, simMonths, cotacaoDolar: cotacao,
+      extraMonths, extraAmount, fullWithdrawFromMonth, withdrawalPct: withdrawPct,
+      reinvestPhaseMonths, faseadoWithdrawPct,
+      fixedWithdrawAmt, fixedWithdrawGrowthPct, fixedWithdrawGrowthInterval, fixedWithdrawStopMonth,
+      faseadoFixedAmt, faseadoFixedGrowthPct, faseadoFixedGrowthInterval, faseadoFixedStopMonth,
+      recoverTimeWithdrawPct, recoverTimeMonths: recoverTimeMonthsVal, recoverTargetAmount, recoverTargetWithdrawPct,
+      consorcioFixedWithdraw
+    }),
+    monthly: Object.freeze(monthly), packages: Object.freeze(packages)
+  });
   // GFI-FASE3: CONTADOR — incrementa simulationCount, lastSimulationAt e updatedAt (fire-and-forget)
   if (currentGFIUser && currentGFIRole) {
     gfiDb.collection('users').doc(currentGFIUser.uid).update({
@@ -1069,7 +1187,7 @@ function renderResults(monthly, cotacao) {
   document.getElementById('cardWithdrawn').textContent      = fmt(last.totalWithdrawn);
   document.getElementById('cardWithdrawnGross').textContent = fmt(last.totalWithdrawnGross);
   document.getElementById('cardAssetsHint').textContent = isConsorcio ? 'Consórcio ativo + pacotes reaportados' : 'Capital nos pacotes ativos';
-  document.getElementById('cardMonthlyHint').textContent = isConsorcio ? 'US$ 250 do consórcio + 12,5% dos pacotes' : '12,5% dos pacotes ativos';
+  document.getElementById('cardMonthlyHint').textContent = isConsorcio ? 'US$ 250 do consórcio + 10% dos pacotes (6% lucro + 4% retorno do capital)' : '10% dos pacotes ativos (6% lucro + 4% retorno do capital)';
   document.getElementById('cardWithdrawnHint').innerHTML = consorcioReinvest
     ? 'Saque fixo acumulado <span class="text-emerald-400">(sem desconto adicional)</span>'
     : 'Acumulado líquido <span class="text-orange-400">(taxa 10% descontada)</span>';
@@ -1234,10 +1352,24 @@ function renderMonthTable(monthly, cotacao) {
 }
 
 // GFI-FASE2: exportExcel — exporta dados para .xlsx usando SheetJS (CDN). Abas: Pacotes + Histórico Mensal.
+// P0.4: exports must use one completed simulation, including its original user.
+function getSimulationForExport() {
+  if (!lastSimulationSnapshot || !lastSimulationSnapshot.monthly.length) {
+    alert('Execute uma simulação antes de exportar.'); return null;
+  }
+  if (!currentGFIUser || currentGFIUser.uid !== lastSimulationSnapshot.user.uid) {
+    alert('Execute uma nova simulação com a conta atual antes de exportar.'); return null;
+  }
+  return lastSimulationSnapshot;
+}
+
 function exportExcel(type) {
   if (typeof XLSX === 'undefined') { alert('SheetJS não carregou. Aguarde e tente novamente.'); return; }
-  const wb      = XLSX.utils.book_new();
-  const cotacao = lastCotacao;
+  const snapshot = getSimulationForExport();
+  if (!snapshot) return;
+  const { cotacao, packages, strategy, consorcioMode, monthly } = snapshot;
+  const baseDate = new Date(snapshot.baseDateMs);
+  const wb = XLSX.utils.book_new();
 
   if (type === 'pacotes' || type === 'all') {
     const data = packages.map(p => {
@@ -1261,10 +1393,10 @@ function exportExcel(type) {
   if (type === 'monthly' || type === 'all') {
     const showBRL = cotacao > 0;
     const withoutTax = strategy === 'consorcio' && consorcioMode === 'reinvest';
-    const data = lastMonthlyData.map(r => {
+    const data = monthly.map(r => {
       const row = {};
       row['Mês']                      = r.m;
-      row['Período']                  = monthLabel(r.m);
+      row['Período']                  = monthLabel(r.m, baseDate);
       row['Rendimento ($)']           = fmt(r.income);
       if (showBRL) row['Rend. (R$)'] = fmtBRL(r.income, cotacao);
       row['Reinvestido ($)']          = fmt(r.reinvested);
@@ -1284,28 +1416,28 @@ function exportExcel(type) {
 }
 
 // GFI-FASE4: Captura todos os parâmetros da simulação para o cabeçalho do Excel Detalhado
-function getSimulationParametersForExport() {
-  const v = id => (document.getElementById(id) || {}).value || '';
-  const n = (id, fallback) => { const val = parseFloat(v(id)); return isNaN(val) ? fallback : val; };
+function getSimulationParametersForExport(snapshot) {
+  const { parameters, strategy, faseadoPost, recoverMode, consorcioMode, user, cotacao, packageRates } = snapshot;
+  const v = id => parameters[id] == null ? '' : String(parameters[id]);
+  const n = (id, fallback) => Number.isFinite(parameters[id]) ? parameters[id] : fallback;
   const ni = 'Não informado';
   const na = 'Não se aplica';
 
   // Estratégia principal
-  const fullWithdrawBtn = document.getElementById('btnFullWithdraw');
-  const isFull100 = fullWithdrawBtn && fullWithdrawBtn.classList.contains('on');
+  const isFull100 = strategy !== 'consorcio' && parameters.fullWithdrawFromMonth === 1;
   const stratMap = { reinvest: '100% Reinvestimento', hybrid: 'Híbrido', fixedW: 'Saque Fixo', faseado: 'Faseado', recoverCapital: 'Recuperar Capital', consorcio: 'Consórcio' };
   const stratLabel = isFull100 ? '100% Saque (todos os meses)' : (stratMap[strategy] || strategy);
 
   // Faseado pós-fase label
   const faseadoPostMap = { withdraw100: 'Sacar 100%', hybrid: 'Híbrido (% saque e % reinvest)', fixedWithdraw: 'Saque Valor Fixo' };
 
-  // Data/hora geração
-  const now = new Date();
+  // Data/hora da simulação, preservada mesmo em exportações posteriores
+  const now = new Date(snapshot.baseDateMs);
   const dtStr = now.toLocaleDateString('pt-BR') + ', ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   // Usuário
-  const userName  = currentGFIUser ? (currentGFIUser.displayName || currentGFIUser.email || ni) : ni;
-  const userEmail = currentGFIUser ? (currentGFIUser.email || ni) : ni;
+  const userName  = user.name || ni;
+  const userEmail = user.email || ni;
 
   // Aportes extras
   const extraM = v('extraMonths');  const extraA = v('extraAmount');
@@ -1317,19 +1449,23 @@ function getSimulationParametersForExport() {
   const fwLabel = strategy === 'consorcio' ? na : (fwMonth !== '' && parseInt(fwMonth) > 0 ? 'A partir do mês ' + fwMonth : na);
 
   // Cotação
-  const cot = parseFloat(v('cotacaoDolar'));
+  const cot = cotacao;
   const cotLabel = !isNaN(cot) && cot > 0 ? 'R$ ' + cot.toLocaleString('pt-BR', {minimumFractionDigits:2}) : ni;
 
   const rows = [
     ['Parâmetro', 'Valor'],
     ['Nome do Usuário', userName],
     ['E-mail', userEmail],
-    ['Data/Hora de Geração', dtStr],
+    ['Data/Hora da Simulação', dtStr],
     ['', ''],
     ['Aporte Inicial ($)', n('initialDeposit', ni)],
     ['Meses de Simulação', n('simMonths', ni)],
+    ['Mês do Aporte Inicial', monthLabel(0, now)],
     ['Cotação do Dólar (R$/USD)', cotLabel],
     ['Estratégia', stratLabel],
+    ['Pacotes – Rendimento bruto mensal', (packageRates.monthly * 100).toLocaleString('pt-BR', { maximumFractionDigits: 4 }) + '%'],
+    ['Pacotes – Lucro (do rendimento bruto)', (packageRates.profitShare * 100).toLocaleString('pt-BR') + '% do rendimento (' + (packageRates.monthly * packageRates.profitShare * 100).toLocaleString('pt-BR', { maximumFractionDigits: 4 }) + '% a.m.)'],
+    ['Pacotes – Retorno do capital (do rendimento bruto)', (packageRates.capitalReturnShare * 100).toLocaleString('pt-BR') + '% do rendimento (' + (packageRates.monthly * packageRates.capitalReturnShare * 100).toLocaleString('pt-BR', { maximumFractionDigits: 4 }) + '% a.m.)'],
     ['Aportes Extras – Meses', extraMesLabel],
     ['Aportes Extras – Valor', extraValLabel],
     ['Mês para iniciar 100% saque', fwLabel],
@@ -1342,7 +1478,7 @@ function getSimulationParametersForExport() {
     const rPct  = 100 - wPct;
     rows.push(['Híbrido – % Saque',          wPct + '%']);
     rows.push(['Híbrido – % Reinvestimento', rPct + '%']);
-  } else if (strategy !== 'hybrid') {
+  } else {
     rows.push(['Híbrido – % Saque',          na]);
     rows.push(['Híbrido – % Reinvestimento', na]);
   }
@@ -1352,9 +1488,9 @@ function getSimulationParametersForExport() {
     const fGInt  = v('fixedWithdrawGrowthInterval');    const fStop = v('fixedWithdrawStopMonth');
     rows.push(['Saque Fixo – Valor líq./mês ($)', fAmt !== '' ? '$' + parseFloat(fAmt).toLocaleString('pt-BR',{minimumFractionDigits:2}) : ni]);
     rows.push(['Saque Fixo – Reajuste (%)',        fGPct  !== '' && fGPct  !== '0' ? fGPct  + '%' : ni]);
-    rows.push(['Saque Fixo – Intervalo reajuste',  fGInt  !== '' ? fGInt  + ' meses' : ni]);
-    rows.push(['Saque Fixo – Parar no mês',        fStop  !== '' ? 'Mês ' + fStop   : 'Nunca']);
-  } else if (strategy !== 'fixedW') {
+    rows.push(['Saque Fixo – Intervalo reajuste',  Number(fGInt) > 0 ? fGInt + ' meses' : ni]);
+    rows.push(['Saque Fixo – Parar no mês',        Number(fStop) > 0 ? 'Mês ' + fStop : 'Nunca']);
+  } else {
     rows.push(['Saque Fixo – Valor líq./mês ($)', na]);
     rows.push(['Saque Fixo – Reajuste (%)',       na]);
     rows.push(['Saque Fixo – Intervalo reajuste', na]);
@@ -1380,8 +1516,8 @@ function getSimulationParametersForExport() {
       rows.push(['Faseado Pós-fase – % Reinvestimento', na]);
       rows.push(['Faseado Pós-fase – Saque fixo ($)',    fA !== '' ? '$' + parseFloat(fA).toLocaleString('pt-BR',{minimumFractionDigits:2}) : ni]);
       rows.push(['Faseado Pós-fase – Reajuste (%)',      fG !== '' && fG !== '0' ? fG + '%' : ni]);
-      rows.push(['Faseado Pós-fase – Intervalo',         fI !== '' ? fI + ' meses' : ni]);
-      rows.push(['Faseado Pós-fase – Parar no mês',      fS !== '' ? 'Mês ' + fS : 'Nunca']);
+      rows.push(['Faseado Pós-fase – Intervalo',         Number(fI) > 0 ? fI + ' meses' : ni]);
+      rows.push(['Faseado Pós-fase – Parar no mês',      Number(fS) > 0 ? 'Mês ' + fS : 'Nunca']);
     } else {
       rows.push(['Faseado Pós-fase – % Saque',          na]);
       rows.push(['Faseado Pós-fase – % Reinvestimento', na]);
@@ -1390,7 +1526,7 @@ function getSimulationParametersForExport() {
       rows.push(['Faseado Pós-fase – Intervalo',         na]);
       rows.push(['Faseado Pós-fase – Parar no mês',      na]);
     }
-  } else if (strategy !== 'faseado') {
+  } else {
     rows.push(['Faseado – Meses fase reinvestimento',  na]);
     rows.push(['Faseado – Estratégia pós-fase',        na]);
     rows.push(['Faseado Pós-fase – % Saque',           na]);
@@ -1422,7 +1558,7 @@ function getSimulationParametersForExport() {
       rows.push(['Recuperar Capital – Valor-alvo',              rcTarget !== '' ? '$' + parseFloat(rcTarget).toLocaleString('pt-BR',{minimumFractionDigits:2}) : ni]);
       rows.push(['Recuperar Capital – Critério de alvo',        'Saque líquido acumulado']);
     }
-  } else if (strategy !== 'recoverCapital') {
+  } else {
     rows.push(['Recuperar Capital – Modo',                     na]);
     rows.push(['Recuperar Capital – % Saque na fase inicial',  na]);
     rows.push(['Recuperar Capital – Meses sacando',            na]);
@@ -1452,16 +1588,16 @@ function getSimulationParametersForExport() {
 // GFI-FASE4: Excel Detalhado — cabeçalho de parâmetros + todos os dados existentes
 function exportExcelDetailed() {
   if (typeof XLSX === 'undefined') { alert('SheetJS não carregou. Aguarde e tente novamente.'); return; }
-  if (!lastMonthlyData || lastMonthlyData.length === 0) {
-    alert('Execute uma simulação antes de exportar.'); return;
-  }
-  const wb      = XLSX.utils.book_new();
-  const cotacao = lastCotacao;
+  const snapshot = getSimulationForExport();
+  if (!snapshot) return;
+  const { cotacao, packages, strategy, consorcioMode, monthly } = snapshot;
+  const baseDate = new Date(snapshot.baseDateMs);
+  const wb = XLSX.utils.book_new();
   const showBRL = cotacao > 0;
   const withoutTax = strategy === 'consorcio' && consorcioMode === 'reinvest';
 
   // --- Aba: Histórico Mensal (com cabeçalho de parâmetros) ---
-  const paramRows = getSimulationParametersForExport();
+  const paramRows = getSimulationParametersForExport(snapshot);
 
   // Linha de cabeçalho das colunas de dados
   const colHeaders = ['Mês', 'Período', 'Rendimento ($)'];
@@ -1473,10 +1609,10 @@ function exportExcelDetailed() {
   colHeaders.push('Pcts. Ativos', 'Capital Ativo ($)', 'Caixa Próx. Mês ($)');
 
   // Linhas de dados
-  const dataRows = lastMonthlyData.map(r => {
+  const dataRows = monthly.map(r => {
     const row = [
       r.m,
-      monthLabel(r.m),
+      monthLabel(r.m, baseDate),
       parseFloat(r.income.toFixed(2)),
     ];
     if (showBRL) row.push(parseFloat((r.income * cotacao).toFixed(2)));
@@ -1523,20 +1659,20 @@ function exportExcelDetailed() {
 // GFI-FASE4: Excel Resumido — somente MES, PERIODO, Sacado Líq. (R$) -10%, Sacado Bruto (R$)
 function exportExcelSummary() {
   if (typeof XLSX === 'undefined') { alert('SheetJS não carregou. Aguarde e tente novamente.'); return; }
-  if (!lastMonthlyData || lastMonthlyData.length === 0) {
-    alert('Execute uma simulação antes de exportar.'); return;
-  }
-  if (!lastCotacao || lastCotacao <= 0 || isNaN(lastCotacao)) {
+  const snapshot = getSimulationForExport();
+  if (!snapshot) return;
+  const { cotacao, strategy, consorcioMode, monthly } = snapshot;
+  const baseDate = new Date(snapshot.baseDateMs);
+  if (!Number.isFinite(cotacao) || cotacao <= 0) {
     alert('Para exportar o Excel Resumido em reais, informe uma cotação válida e execute a simulação novamente.'); return;
   }
-  const cotacao = lastCotacao;
   const wb = XLSX.utils.book_new();
 
   const withoutTax = strategy === 'consorcio' && consorcioMode === 'reinvest';
   const colHeaders = ['MES', 'PERIODO', withoutTax ? 'Sacado (R$) sem taxa' : 'Sacado Líq. (R$) -10%', 'Sacado Bruto (R$)'];
-  const dataRows = lastMonthlyData.map(r => [
+  const dataRows = monthly.map(r => [
     r.m,
-    monthLabel(r.m),
+    monthLabel(r.m, baseDate),
     parseFloat((r.withdrawn     * cotacao).toFixed(2)),
     parseFloat((r.grossWithdrawn * cotacao).toFixed(2)),
   ]);
